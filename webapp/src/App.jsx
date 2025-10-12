@@ -347,23 +347,48 @@ function App() {
       </header>
 
       <main className="main">
-        <section className="metrics-grid">
-          <article className="metric-card highlight">
-            <span className="metric-label">Overall Yearly Fees</span>
-            <span className="metric-value">
-              {formattedOverallFees}
-            </span>
-            <span className="metric-subtitle">USD</span>
-          </article>
-
-          <article className="metric-card">
-            <span className="metric-label">SSV APR</span>
-            <span className="metric-value">
-              {formattedSsvApr}
-            </span>
-            <span className="metric-subtitle">percent</span>
-          </article>
-        </section>
+      <section className="summary-section">
+        <article className="metric-card highlight summary-card">
+          <div className="summary-values">
+            <div className="summary-value">
+              <span className="metric-label">Overall Yearly Fees</span>
+              <span className="metric-value">{formattedOverallFees}</span>
+              <span className="metric-subtitle">USD</span>
+            </div>
+            <div className="summary-divider" aria-hidden="true" />
+            <div className="summary-value">
+              <span className="metric-label">SSV APR</span>
+              <span className="metric-value">{formattedSsvApr}</span>
+              <span className="metric-subtitle">percent</span>
+            </div>
+          </div>
+          <p className="summary-note">
+            Both values update instantly as you adjust the assumptions below.
+          </p>
+        </article>
+        <div className="summary-text">
+          <p>
+            See how SSV can become the DVT layer that turns network activity into ETH flow. SSV aligns
+            Ethereum’s growth with its stakers — shifting from speculative tokenomics to real ETH accrual.
+            Explore how your SSV can compound ETH yield as the network scales.
+          </p>
+          <div className="summary-actions">
+            <span>👉 Try the live calculator below</span>
+            <a
+              className="summary-link"
+              href="https://docs.google.com/document/d/1bQF5Gqoz2U2PPncfO8oFUtZh13dfq8Z9bEO5TdeOybY"
+              target="_blank"
+              rel="noreferrer"
+            >
+              📖 Learn the vision: Making SSV an ETH Accrual Token →
+            </a>
+          </div>
+          <p className="summary-disclaimer">
+            * This is a calculator showcasing how SSV can become an ETH accrual token. For this proposal to happen
+            it needs the SSV DAO approval.
+          </p>
+        </div>
+      </section>
 
         <section className="controls-section">
           <div className="section-header">
@@ -450,6 +475,9 @@ function App() {
               onReset={() => setEthPriceDeltaPct(0)}
               canReset={ethPriceBaseline !== null && ethPriceDeltaPct !== 0}
             />
+          </div>
+
+          <div className="controls-grid secondary">
             <SliderControl
               label="SSV Price"
               value={ssvPriceDeltaPct}
