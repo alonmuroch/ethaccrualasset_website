@@ -22,6 +22,7 @@ The app fetches current market data on load. ETH APR is read-only (sourced from 
 - `ETH Price`: -100% to +100%
 - `SSV Price`: -100% to +1,000%
 - `Network Fee`: -50% to +150% (baseline 1%)
+- `% Staked SSV`: 0% to 100% (defaults to 50%; hint includes the live total supply from CoinMarketCap)
 
 Each slider includes a **Reset** button to snap back to the baseline fetched (or defaulted) value.
 
@@ -29,4 +30,10 @@ Overall yearly fees are calculated as:
 
 ```
 Staked ETH × ETH Price × ETH APR × Network Fee
+```
+
+SSV APR is derived from those fees:
+
+```
+Overall Yearly Fees ÷ (Staked SSV × SSV Price)
 ```

@@ -101,7 +101,7 @@ const computeAdjustedValue = (baseline, deltaPct) => {
 }
 
 const NETWORK_FEE_BASELINE = 0.01
-const STAKED_SSV_BASELINE = 12
+const STAKED_SSV_BASELINE = 50
 
 const formatValueWithDelta = (value, deltaPct, formatter) => {
   if (typeof value !== 'number' || !Number.isFinite(value)) {
@@ -120,6 +120,15 @@ const formatValueWithDelta = (value, deltaPct, formatter) => {
 }
 
 const formatEthAmount = (value) => `${formatNumber(Math.round(value))} ETH`
+const formatTokenAmount = (value, symbol) => {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return `— ${symbol}`
+  }
+
+  return `${new Intl.NumberFormat('en-US', {
+    maximumFractionDigits: 2,
+  }).format(value)} ${symbol}`
+}
 
 function App() {
   const [snapshot, setSnapshot] = useState(null)
@@ -130,6 +139,7 @@ function App() {
   const [ethPriceBaseline, setEthPriceBaseline] = useState(null)
   const [ssvPriceBaseline, setSsvPriceBaseline] = useState(null)
   const [stakedEthBaseline, setStakedEthBaseline] = useState(null)
+  const [ssvTotalSupply, setSsvTotalSupply] = useState(null)
 
   const [ethPriceDeltaPct, setEthPriceDeltaPct] = useState(0)
   const [ssvPriceDeltaPct, setSsvPriceDeltaPct] = useState(0)
@@ -167,6 +177,14 @@ function App() {
           Number.isFinite(backendSsvPrice)
         ) {
           setSsvPriceBaseline(backendSsvPrice)
+        }
+
+        const backendSsvSupply = data?.data?.prices?.SSV?.totalSupply
+        if (
+          typeof backendSsvSupply === 'number' &&
+          Number.isFinite(backendSsvSupply)
+        ) {
+          setSsvTotalSupply(backendSsvSupply)
         }
 
         const backendStakedEth = data?.data?.stakedEth?.value
@@ -225,7 +243,19 @@ function App() {
       ? networkFeeAdjusted * 100
       : null
 
-  // TODO: replace placeholders with real calculations once formulas are defined.
+  const stakedSsvAmount = useMemo(() => {
+    if (
+      typeof ssvTotalSupply !== 'number' ||
+      !Number.isFinite(ssvTotalSupply) ||
+      typeof stakedSsvPercent !== 'number' ||
+      !Number.isFinite(stakedSsvPercent)
+    ) {
+      return null
+    }
+
+    return (ssvTotalSupply * stakedSsvPercent) / 100
+  }, [ssvTotalSupply, stakedSsvPercent])
+
   const finalStakedEth =
     stakedEthAdjusted ??
     (typeof stakedEthBaseline === 'number' && Number.isFinite(stakedEthBaseline)
@@ -257,7 +287,35 @@ function App() {
       : null
   const formattedOverallFees =
     overallFeesUsd !== null ? formatCurrency(overallFeesUsd) : '—'
-  const ssvAprEth = 0
+
+  const finalSsvPrice =
+    ssvPriceAdjusted ??
+    (typeof ssvPriceBaseline === 'number' && Number.isFinite(ssvPriceBaseline)
+      ? ssvPriceBaseline
+      : null)
+
+  const finalStakedSsv =
+    stakedSsvAmount ??
+    (typeof ssvTotalSupply === 'number' && Number.isFinite(ssvTotalSupply)
+      ? (ssvTotalSupply * STAKED_SSV_BASELINE) / 100
+      : null)
+
+  const ssvApr =
+    overallFeesUsd !== null &&
+    finalStakedSsv !== null &&
+    finalStakedSsv > 0 &&
+    finalSsvPrice !== null &&
+    finalSsvPrice > 0
+      ? overallFeesUsd / (finalStakedSsv * finalSsvPrice)
+      : null
+
+  const ssvAprPercentValue =
+    ssvApr !== null && Number.isFinite(ssvApr) ? ssvApr * 100 : null
+
+  const formattedSsvApr =
+    ssvAprPercentValue !== null
+      ? formatPercent(ssvAprPercentValue)
+      : '—'
 
   const renderStatusMessage = () => {
     if (loading && !snapshot) {
@@ -301,12 +359,9 @@ function App() {
           <article className="metric-card">
             <span className="metric-label">SSV APR</span>
             <span className="metric-value">
-              {ssvAprEth.toLocaleString(undefined, {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2,
-              })}
+              {formattedSsvApr}
             </span>
-            <span className="metric-subtitle">ETH</span>
+            <span className="metric-subtitle">percent</span>
           </article>
         </section>
 
@@ -460,7 +515,22 @@ function App() {
               max={100}
               step={1}
               formatter={formatPercent}
-              hint="Portion of supply participating in staking."
+              valueLabel={
+                stakedSsvAmount !== null
+                  ? `${formatPercent(stakedSsvPercent)} (${formatTokenAmount(
+                      stakedSsvAmount,
+                      'SSV'
+                    )})`
+                  : formatPercent(stakedSsvPercent)
+              }
+              hint={
+                ssvTotalSupply !== null
+                  ? `Portion of supply participating in staking (total supply ~ ${formatTokenAmount(
+                      ssvTotalSupply,
+                      'SSV'
+                    )}).`
+                  : 'Portion of supply participating in staking.'
+              }
               onReset={() => setStakedSsvPercent(STAKED_SSV_BASELINE)}
               canReset={stakedSsvPercent !== STAKED_SSV_BASELINE}
             />

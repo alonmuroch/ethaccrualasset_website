@@ -94,6 +94,14 @@ async function fetchLatestPrices() {
       acc[symbol] = {
         symbol,
         priceUsd: typeof usdQuote?.price === 'number' ? usdQuote.price : null,
+        totalSupply:
+          typeof asset?.total_supply === 'number' ? asset.total_supply : null,
+        circulatingSupply:
+          typeof asset?.circulating_supply === 'number'
+            ? asset.circulating_supply
+            : null,
+        maxSupply:
+          typeof asset?.max_supply === 'number' ? asset.max_supply : null,
         sourceLastUpdated: usdQuote?.last_updated || null,
       }
 
