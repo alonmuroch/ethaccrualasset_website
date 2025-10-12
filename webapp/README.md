@@ -16,4 +16,8 @@ Make sure the backend is running (default `http://localhost:4000`). Then start t
 npm run dev
 ```
 
-The app will fetch current market data on load. ETH APR is read-only (sourced from the backend). ETH and SSV price sliders allow relative adjustments around the live price (-100%/+100% and -100%/+10,000%, respectively).
+The app fetches current market data on load. ETH APR is read-only (sourced from the backend). Staked ETH, ETH price, and SSV price sliders apply relative adjustments to their live baselines:
+
+- `Staked ETH`: -25% to +100%
+- `ETH Price`: -100% to +100%
+- `SSV Price`: -100% to +1,000%

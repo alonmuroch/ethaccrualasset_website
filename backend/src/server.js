@@ -14,6 +14,9 @@ const ETHSTORE_API_URL = (
   process.env.ETHSTORE_API_URL || 'https://beaconcha.in/api/v1/ethstore'
 ).replace(/\/$/, '')
 const ETHSTORE_DAY = process.env.ETHSTORE_DAY || 'latest'
+const STAKED_ETH_API_URL =
+  process.env.STAKED_ETH_API_URL ||
+  'https://api.ssv.network/api/v4/mainnet/validators/totalEffectiveBalance'
 
 const app = express()
 
@@ -40,12 +43,15 @@ const ethStoreApiKey = process.env.ETHSTORE_API_KEY
 const dataState = {
   prices: null,
   stakingApr: null,
+  stakedEth: null,
   lastUpdated: null,
   pricesUpdatedAt: null,
   stakingAprUpdatedAt: null,
+  stakedEthUpdatedAt: null,
   lastFetchError: {
     prices: null,
     stakingApr: null,
+    stakedEth: null,
   },
 }
 
@@ -220,13 +226,73 @@ async function fetchEthStakingApr() {
   }
 }
 
+async function fetchTotalStakedEth() {
+  try {
+    console.info('[ssv] Fetching total effective balance from SSV network...')
+
+    const response = await axios.get(STAKED_ETH_API_URL, {
+      timeout: 10_000,
+    })
+
+    const payload = response.data
+    const rawValue =
+      payload?.total_effective_balance ??
+      payload?.totalEffectiveBalance ??
+      (typeof payload === 'number' || typeof payload === 'string' ? payload : null)
+
+    let valueEth = null
+    if (rawValue !== null) {
+      const numeric =
+        typeof rawValue === 'string' ? Number(rawValue) : Number(rawValue)
+
+      if (Number.isFinite(numeric)) {
+        valueEth = numeric / 1_000_000_000
+      }
+    }
+
+    const timestamp = new Date().toISOString()
+
+    dataState.stakedEth = {
+      value: valueEth,
+      raw: payload ?? null,
+      sourceUnit: 'gwei',
+    }
+    dataState.lastFetchError.stakedEth = null
+    dataState.stakedEthUpdatedAt = timestamp
+
+    const displayValue =
+      typeof valueEth === 'number' && Number.isFinite(valueEth)
+        ? `${valueEth.toLocaleString(undefined, {
+            maximumFractionDigits: 0,
+          })} ETH`
+        : 'n/a'
+
+    console.info('[ssv] Updated total staked ETH at', timestamp, '-', displayValue)
+
+    return true
+  } catch (error) {
+    const message = error.response?.data || error.message
+
+    dataState.lastFetchError.stakedEth = {
+      code: 'FETCH_FAILED',
+      message: typeof message === 'string' ? message : JSON.stringify(message),
+      timestamp: new Date().toISOString(),
+    }
+
+    console.error('[ssv] Failed to fetch staked ETH:', dataState.lastFetchError.stakedEth.message)
+
+    return false
+  }
+}
+
 async function fetchAllData() {
-  const [pricesUpdated, aprUpdated] = await Promise.all([
+  const [pricesUpdated, aprUpdated, stakedEthUpdated] = await Promise.all([
     fetchLatestPrices(),
     fetchEthStakingApr(),
+    fetchTotalStakedEth(),
   ])
 
-  if (pricesUpdated || aprUpdated) {
+  if (pricesUpdated || aprUpdated || stakedEthUpdated) {
     dataState.lastUpdated = new Date().toISOString()
   }
 }
@@ -237,7 +303,7 @@ async function startPolling() {
 }
 
 app.get('/api/prices', (req, res) => {
-  if (!dataState.prices && !dataState.stakingApr) {
+  if (!dataState.prices && !dataState.stakingApr && !dataState.stakedEth) {
     return res.status(503).json({
       message: 'Market data not available yet.',
       lastFetchError: dataState.lastFetchError,
@@ -248,12 +314,14 @@ app.get('/api/prices', (req, res) => {
     data: {
       prices: dataState.prices,
       stakingApr: dataState.stakingApr,
+      stakedEth: dataState.stakedEth,
     },
     lastUpdated: dataState.lastUpdated,
     refreshIntervalMs,
     sources: {
       prices: 'coinmarketcap',
       stakingApr: 'beaconcha.in ETH.Store',
+      stakedEth: 'ssv.network totalEffectiveBalance',
     },
     lastFetchError: dataState.lastFetchError,
   })
@@ -266,6 +334,7 @@ app.get('/health', (req, res) => {
     lastFetchError: dataState.lastFetchError,
     symbols,
     stakingAprConfigured: Boolean(ethStoreApiKey),
+    stakedEthAvailable: Boolean(dataState.stakedEth),
     refreshIntervalMs,
   })
 })

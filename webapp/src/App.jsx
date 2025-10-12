@@ -86,18 +86,23 @@ const computeAdjustedValue = (baseline, deltaPct) => {
   return baseline * (1 + deltaPct / 100)
 }
 
-const formatPriceWithDelta = (value, deltaPct) => {
+const formatValueWithDelta = (value, deltaPct, formatter) => {
   if (typeof value !== 'number' || !Number.isFinite(value)) {
     return null
   }
 
-  if (typeof deltaPct !== 'number' || !Number.isFinite(deltaPct)) {
-    return formatCurrency(value)
+  const format = formatter ?? ((input) => input)
+  const formattedValue = format(value)
+
+  if (typeof deltaPct !== 'number' || !Number.isFinite(deltaPct) || deltaPct === 0) {
+    return formattedValue
   }
 
   const sign = deltaPct > 0 ? '+' : ''
-  return `${formatCurrency(value)} (${sign}${deltaPct.toFixed(0)}%)`
+  return `${formattedValue} (${sign}${deltaPct.toFixed(0)}%)`
 }
+
+const formatEthAmount = (value) => `${formatNumber(Math.round(value))} ETH`
 
 function App() {
   const [snapshot, setSnapshot] = useState(null)
@@ -107,10 +112,11 @@ function App() {
   const [ethAprPercent, setEthAprPercent] = useState(null)
   const [ethPriceBaseline, setEthPriceBaseline] = useState(null)
   const [ssvPriceBaseline, setSsvPriceBaseline] = useState(null)
+  const [stakedEthBaseline, setStakedEthBaseline] = useState(null)
 
   const [ethPriceDeltaPct, setEthPriceDeltaPct] = useState(0)
   const [ssvPriceDeltaPct, setSsvPriceDeltaPct] = useState(0)
-  const [stakedEth, setStakedEth] = useState(3200)
+  const [stakedEthDeltaPct, setStakedEthDeltaPct] = useState(0)
   const [stakedSsvPercent, setStakedSsvPercent] = useState(12)
 
   useEffect(() => {
@@ -145,6 +151,14 @@ function App() {
           setSsvPriceBaseline(backendSsvPrice)
         }
 
+        const backendStakedEth = data?.data?.stakedEth?.value
+        if (
+          typeof backendStakedEth === 'number' &&
+          Number.isFinite(backendStakedEth)
+        ) {
+          setStakedEthBaseline(backendStakedEth)
+        }
+
         setError(null)
       } catch (loadError) {
         console.error(loadError)
@@ -176,6 +190,11 @@ function App() {
   const ssvPriceAdjusted = useMemo(
     () => computeAdjustedValue(ssvPriceBaseline, ssvPriceDeltaPct),
     [ssvPriceBaseline, ssvPriceDeltaPct]
+  )
+
+  const stakedEthAdjusted = useMemo(
+    () => computeAdjustedValue(stakedEthBaseline, stakedEthDeltaPct),
+    [stakedEthBaseline, stakedEthDeltaPct]
   )
 
   // TODO: replace placeholders with real calculations once formulas are defined.
@@ -256,13 +275,33 @@ function App() {
             />
             <SliderControl
               label="Staked ETH"
-              value={stakedEth}
-              onChange={setStakedEth}
-              min={0}
-              max={50000}
-              step={100}
-              formatter={(value) => `${formatNumber(value)} ETH`}
-              hint="Total ETH contributing to accrual."
+              value={stakedEthDeltaPct}
+              onChange={setStakedEthDeltaPct}
+              min={-25}
+              max={100}
+              step={1}
+              formatter={(value) => `${value.toFixed(0)}%`}
+              valueLabel={
+                stakedEthAdjusted !== null
+                  ? formatValueWithDelta(
+                      stakedEthAdjusted,
+                      stakedEthDeltaPct,
+                      formatEthAmount
+                    ) ?? formatEthAmount(stakedEthAdjusted)
+                  : loading
+                  ? 'Loading...'
+                  : '—'
+              }
+              minLabel="-25%"
+              maxLabel="+100%"
+              hint={
+                stakedEthBaseline !== null
+                  ? `Baseline ${formatEthAmount(
+                      stakedEthBaseline
+                    )} · adjust from -25% to +100%`
+                  : 'Baseline staked ETH not available yet.'
+              }
+              disabled={stakedEthBaseline === null || loading}
             />
             <SliderControl
               label="ETH Price"
@@ -274,8 +313,11 @@ function App() {
               formatter={(value) => `${value.toFixed(0)}%`}
               valueLabel={
                 ethPriceAdjusted !== null
-                  ? formatPriceWithDelta(ethPriceAdjusted, ethPriceDeltaPct) ??
-                    formatCurrency(ethPriceAdjusted)
+                  ? formatValueWithDelta(
+                      ethPriceAdjusted,
+                      ethPriceDeltaPct,
+                      formatCurrency
+                    ) ?? formatCurrency(ethPriceAdjusted)
                   : loading
                   ? 'Loading...'
                   : '—'
@@ -299,8 +341,11 @@ function App() {
               formatter={(value) => `${value.toFixed(0)}%`}
               valueLabel={
                 ssvPriceAdjusted !== null
-                  ? formatPriceWithDelta(ssvPriceAdjusted, ssvPriceDeltaPct) ??
-                    formatCurrency(ssvPriceAdjusted)
+                  ? formatValueWithDelta(
+                      ssvPriceAdjusted,
+                      ssvPriceDeltaPct,
+                      formatCurrency
+                    ) ?? formatCurrency(ssvPriceAdjusted)
                   : loading
                   ? 'Loading...'
                   : '—'
