@@ -354,12 +354,18 @@ function App() {
               <span className="metric-label">Overall Yearly Fees</span>
               <span className="metric-value">{formattedOverallFees}</span>
               <span className="metric-subtitle">USD</span>
+              <p className="summary-description">
+                The yearly fees the entire SSV Network accumulates under the assumptions you configure below.
+              </p>
             </div>
             <div className="summary-divider" aria-hidden="true" />
             <div className="summary-value">
               <span className="metric-label">SSV APR</span>
               <span className="metric-value">{formattedSsvApr}</span>
               <span className="metric-subtitle">percent</span>
+              <p className="summary-description">
+                The resulting APR, paid in ETH, for staking SSV with those same inputs.
+              </p>
             </div>
           </div>
           <p className="summary-note">
@@ -367,25 +373,27 @@ function App() {
           </p>
         </article>
         <div className="summary-text">
+          <p className="summary-disclaimer summary-disclaimer--headline">
+            This is a calculator showcasing how SSV can become an ETH accrual token. For this proposal to happen it
+            needs the SSV DAO approval.
+          </p>
           <p>
             See how SSV can become the DVT layer that turns network activity into ETH flow. SSV aligns
             Ethereum’s growth with its stakers — shifting from speculative tokenomics to real ETH accrual.
             Explore how your SSV can compound ETH yield as the network scales.
           </p>
           <div className="summary-actions">
-            <span>👉 Try the live calculator below</span>
             <a
               className="summary-link"
-              href="https://docs.google.com/document/d/1bQF5Gqoz2U2PPncfO8oFUtZh13dfq8Z9bEO5TdeOybY"
+              href="https://alonmuroch-65570.medium.com/making-ssv-an-eth-accrual-token-d5e839fb24c0"
               target="_blank"
               rel="noreferrer"
             >
-              📖 Learn the vision: Making SSV an ETH Accrual Token →
+              📖 Making SSV an ETH Accrual Token →
             </a>
           </div>
           <p className="summary-disclaimer">
-            * This is a calculator showcasing how SSV can become an ETH accrual token. For this proposal to happen
-            it needs the SSV DAO approval.
+            * Numbers are based on the inputs you configure below and should be treated as directional estimates.
           </p>
         </div>
       </section>
