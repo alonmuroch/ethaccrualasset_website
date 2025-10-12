@@ -33,14 +33,28 @@ const SliderControl = ({
   valueLabel,
   minLabel,
   maxLabel,
+  onReset,
+  canReset = true,
 }) => (
   <div className="control-card">
     <div className="control-header">
-      <span className="control-label">{label}</span>
-      <span className="control-value">
-        {valueLabel ??
-          (formatter && value !== undefined ? formatter(value) : value)}
-      </span>
+      <div className="control-meta">
+        <span className="control-label">{label}</span>
+        <span className="control-value">
+          {valueLabel ??
+            (formatter && value !== undefined ? formatter(value) : value)}
+        </span>
+      </div>
+      {onReset ? (
+        <button
+          type="button"
+          className="control-reset"
+          onClick={onReset}
+          disabled={!canReset}
+        >
+          Reset
+        </button>
+      ) : null}
     </div>
     {hint ? <p className="control-hint">{hint}</p> : null}
     <input
@@ -86,6 +100,9 @@ const computeAdjustedValue = (baseline, deltaPct) => {
   return baseline * (1 + deltaPct / 100)
 }
 
+const NETWORK_FEE_BASELINE = 0.01
+const STAKED_SSV_BASELINE = 12
+
 const formatValueWithDelta = (value, deltaPct, formatter) => {
   if (typeof value !== 'number' || !Number.isFinite(value)) {
     return null
@@ -117,7 +134,8 @@ function App() {
   const [ethPriceDeltaPct, setEthPriceDeltaPct] = useState(0)
   const [ssvPriceDeltaPct, setSsvPriceDeltaPct] = useState(0)
   const [stakedEthDeltaPct, setStakedEthDeltaPct] = useState(0)
-  const [stakedSsvPercent, setStakedSsvPercent] = useState(12)
+  const [networkFeeDeltaPct, setNetworkFeeDeltaPct] = useState(0)
+  const [stakedSsvPercent, setStakedSsvPercent] = useState(STAKED_SSV_BASELINE)
 
   useEffect(() => {
     let isMounted = true
@@ -197,8 +215,48 @@ function App() {
     [stakedEthBaseline, stakedEthDeltaPct]
   )
 
+  const networkFeeAdjusted = useMemo(
+    () => computeAdjustedValue(NETWORK_FEE_BASELINE, networkFeeDeltaPct),
+    [networkFeeDeltaPct]
+  )
+
+  const networkFeeAdjustedPercent =
+    typeof networkFeeAdjusted === 'number' && Number.isFinite(networkFeeAdjusted)
+      ? networkFeeAdjusted * 100
+      : null
+
   // TODO: replace placeholders with real calculations once formulas are defined.
-  const overallFeesUsd = 0
+  const finalStakedEth =
+    stakedEthAdjusted ??
+    (typeof stakedEthBaseline === 'number' && Number.isFinite(stakedEthBaseline)
+      ? stakedEthBaseline
+      : null)
+
+  const finalEthPrice =
+    ethPriceAdjusted ??
+    (typeof ethPriceBaseline === 'number' && Number.isFinite(ethPriceBaseline)
+      ? ethPriceBaseline
+      : null)
+
+  const finalEthAprDecimal =
+    typeof ethAprPercent === 'number' && Number.isFinite(ethAprPercent)
+      ? ethAprPercent / 100
+      : null
+
+  const finalNetworkFeeDecimal =
+    typeof networkFeeAdjusted === 'number' && Number.isFinite(networkFeeAdjusted)
+      ? networkFeeAdjusted
+      : null
+
+  const overallFeesUsd =
+    finalStakedEth !== null &&
+    finalEthPrice !== null &&
+    finalEthAprDecimal !== null &&
+    finalNetworkFeeDecimal !== null
+      ? finalStakedEth * finalEthPrice * finalEthAprDecimal * finalNetworkFeeDecimal
+      : null
+  const formattedOverallFees =
+    overallFeesUsd !== null ? formatCurrency(overallFeesUsd) : '—'
   const ssvAprEth = 0
 
   const renderStatusMessage = () => {
@@ -235,7 +293,7 @@ function App() {
           <article className="metric-card highlight">
             <span className="metric-label">Overall Yearly Fees</span>
             <span className="metric-value">
-              {formatCurrency(overallFeesUsd)}
+              {formattedOverallFees}
             </span>
             <span className="metric-subtitle">USD</span>
           </article>
@@ -302,6 +360,10 @@ function App() {
                   : 'Baseline staked ETH not available yet.'
               }
               disabled={stakedEthBaseline === null || loading}
+              onReset={() => setStakedEthDeltaPct(0)}
+              canReset={
+                stakedEthBaseline !== null && stakedEthDeltaPct !== 0
+              }
             />
             <SliderControl
               label="ETH Price"
@@ -330,6 +392,8 @@ function App() {
                   : 'Baseline price not available yet.'
               }
               disabled={ethPriceBaseline === null || loading}
+              onReset={() => setEthPriceDeltaPct(0)}
+              canReset={ethPriceBaseline !== null && ethPriceDeltaPct !== 0}
             />
             <SliderControl
               label="SSV Price"
@@ -346,9 +410,9 @@ function App() {
                       ssvPriceDeltaPct,
                       formatCurrency
                     ) ?? formatCurrency(ssvPriceAdjusted)
-                  : loading
-                  ? 'Loading...'
-                  : '—'
+                : loading
+                ? 'Loading...'
+                : '—'
               }
               minLabel="-100%"
               maxLabel="+1000%"
@@ -360,6 +424,33 @@ function App() {
                   : 'Baseline price not available yet.'
               }
               disabled={ssvPriceBaseline === null || loading}
+              onReset={() => setSsvPriceDeltaPct(0)}
+              canReset={ssvPriceBaseline !== null && ssvPriceDeltaPct !== 0}
+            />
+            <SliderControl
+              label="Network Fee"
+              value={networkFeeDeltaPct}
+              onChange={setNetworkFeeDeltaPct}
+              min={-50}
+              max={150}
+              step={1}
+              formatter={(value) => `${value.toFixed(0)}%`}
+              valueLabel={
+                networkFeeAdjustedPercent !== null
+                  ? formatValueWithDelta(
+                      networkFeeAdjustedPercent,
+                      networkFeeDeltaPct,
+                      formatPercent
+                    ) ?? formatPercent(networkFeeAdjustedPercent)
+                  : '—'
+              }
+              minLabel="-50%"
+              maxLabel="+150%"
+              hint={`Baseline ${formatPercent(
+                NETWORK_FEE_BASELINE * 100
+              )} · adjust from -50% to +150%`}
+              onReset={() => setNetworkFeeDeltaPct(0)}
+              canReset={networkFeeDeltaPct !== 0}
             />
             <SliderControl
               label="% Staked SSV"
@@ -370,6 +461,8 @@ function App() {
               step={1}
               formatter={formatPercent}
               hint="Portion of supply participating in staking."
+              onReset={() => setStakedSsvPercent(STAKED_SSV_BASELINE)}
+              canReset={stakedSsvPercent !== STAKED_SSV_BASELINE}
             />
           </div>
           <div className="data-status">

@@ -159,9 +159,38 @@
   gap: 0.75rem;
 }
 
+.control-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
 .control-label {
   font-weight: 600;
   color: #1e293b;
+}
+
+.control-reset {
+  border: 1px solid rgba(37, 99, 235, 0.4);
+  background: rgba(37, 99, 235, 0.08);
+  color: #1d4ed8;
+  border-radius: 999px;
+  padding: 0.25rem 0.8rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.control-reset:hover:not(:disabled) {
+  background: rgba(37, 99, 235, 0.16);
+  border-color: rgba(37, 99, 235, 0.6);
+}
+
+.control-reset:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 .control-value {
