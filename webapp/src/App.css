@@ -143,6 +143,15 @@
   gap: 1rem;
 }
 
+.control-card.read-only {
+  justify-content: space-between;
+}
+
+.control-card.read-only .control-value {
+  font-size: clamp(2.4rem, 2rem + 2vw, 3.4rem);
+  font-weight: 700;
+}
+
 .control-header {
   display: flex;
   align-items: center;
@@ -173,11 +182,22 @@
   cursor: pointer;
 }
 
+.control-card input[type='range']:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 .control-range {
   display: flex;
   justify-content: space-between;
   font-size: 0.8rem;
   color: #94a3b8;
+}
+
+.data-status {
+  font-size: 0.85rem;
+  color: #64748b;
+  margin-top: 0.75rem;
 }
 
 @media (max-width: 640px) {

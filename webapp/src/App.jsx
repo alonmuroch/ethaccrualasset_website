@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import './App.css'
+import { fetchMarketSnapshot } from './api'
 
 const formatCurrency = (value) =>
   new Intl.NumberFormat('en-US', {
@@ -28,11 +29,18 @@ const SliderControl = ({
   step,
   formatter,
   hint,
+  disabled = false,
+  valueLabel,
+  minLabel,
+  maxLabel,
 }) => (
   <div className="control-card">
     <div className="control-header">
       <span className="control-label">{label}</span>
-      <span className="control-value">{formatter(value)}</span>
+      <span className="control-value">
+        {valueLabel ??
+          (formatter && value !== undefined ? formatter(value) : value)}
+      </span>
     </div>
     {hint ? <p className="control-hint">{hint}</p> : null}
     <input
@@ -41,26 +49,151 @@ const SliderControl = ({
       max={max}
       step={step}
       value={value}
-      onChange={(event) => onChange(Number(event.target.value))}
+      onChange={(event) => {
+        if (onChange) {
+          onChange(Number(event.target.value))
+        }
+      }}
       aria-label={label}
+      disabled={disabled}
+      className={disabled ? 'disabled' : undefined}
     />
     <div className="control-range">
-      <span>{formatter(min)}</span>
-      <span>{formatter(max)}</span>
+      <span>
+        {minLabel ??
+          (formatter && min !== undefined ? formatter(min) : String(min))}
+      </span>
+      <span>
+        {maxLabel ??
+          (formatter && max !== undefined ? formatter(max) : String(max))}
+      </span>
     </div>
   </div>
 )
 
+const StaticControl = ({ label, value, hint }) => (
+  <div className="control-card read-only">
+    <div className="control-header">
+      <span className="control-label">{label}</span>
+      <span className="control-value">{value}</span>
+    </div>
+    {hint ? <p className="control-hint">{hint}</p> : null}
+  </div>
+)
+
+const computeAdjustedValue = (baseline, deltaPct) => {
+  if (typeof baseline !== 'number') return null
+  return baseline * (1 + deltaPct / 100)
+}
+
+const formatPriceWithDelta = (value, deltaPct) => {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return null
+  }
+
+  if (typeof deltaPct !== 'number' || !Number.isFinite(deltaPct)) {
+    return formatCurrency(value)
+  }
+
+  const sign = deltaPct > 0 ? '+' : ''
+  return `${formatCurrency(value)} (${sign}${deltaPct.toFixed(0)}%)`
+}
+
 function App() {
-  const [ethApr, setEthApr] = useState(4.5)
+  const [snapshot, setSnapshot] = useState(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(null)
+
+  const [ethAprPercent, setEthAprPercent] = useState(null)
+  const [ethPriceBaseline, setEthPriceBaseline] = useState(null)
+  const [ssvPriceBaseline, setSsvPriceBaseline] = useState(null)
+
+  const [ethPriceDeltaPct, setEthPriceDeltaPct] = useState(0)
+  const [ssvPriceDeltaPct, setSsvPriceDeltaPct] = useState(0)
   const [stakedEth, setStakedEth] = useState(3200)
-  const [ethPrice, setEthPrice] = useState(3250)
-  const [ssvPrice, setSsvPrice] = useState(45)
   const [stakedSsvPercent, setStakedSsvPercent] = useState(12)
+
+  useEffect(() => {
+    let isMounted = true
+
+    const loadSnapshot = async () => {
+      try {
+        setLoading(true)
+        const data = await fetchMarketSnapshot()
+        if (!isMounted) return
+
+        setSnapshot(data)
+
+        const stakingApr = data?.data?.stakingApr?.value
+        if (typeof stakingApr === 'number' && Number.isFinite(stakingApr)) {
+          setEthAprPercent(stakingApr * 100)
+        }
+
+        const backendEthPrice = data?.data?.prices?.ETH?.priceUsd
+        if (
+          typeof backendEthPrice === 'number' &&
+          Number.isFinite(backendEthPrice)
+        ) {
+          setEthPriceBaseline(backendEthPrice)
+        }
+
+        const backendSsvPrice = data?.data?.prices?.SSV?.priceUsd
+        if (
+          typeof backendSsvPrice === 'number' &&
+          Number.isFinite(backendSsvPrice)
+        ) {
+          setSsvPriceBaseline(backendSsvPrice)
+        }
+
+        setError(null)
+      } catch (loadError) {
+        console.error(loadError)
+        if (!isMounted) return
+        setError(
+          loadError instanceof Error
+            ? loadError.message
+            : 'Failed to load market data.'
+        )
+      } finally {
+        if (isMounted) {
+          setLoading(false)
+        }
+      }
+    }
+
+    loadSnapshot()
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
+
+  const ethPriceAdjusted = useMemo(
+    () => computeAdjustedValue(ethPriceBaseline, ethPriceDeltaPct),
+    [ethPriceBaseline, ethPriceDeltaPct]
+  )
+
+  const ssvPriceAdjusted = useMemo(
+    () => computeAdjustedValue(ssvPriceBaseline, ssvPriceDeltaPct),
+    [ssvPriceBaseline, ssvPriceDeltaPct]
+  )
 
   // TODO: replace placeholders with real calculations once formulas are defined.
   const overallFeesUsd = 0
   const ssvAprEth = 0
+
+  const renderStatusMessage = () => {
+    if (loading && !snapshot) {
+      return 'Loading market data...'
+    }
+    if (error) {
+      return `Market data unavailable: ${error}`
+    }
+    if (snapshot?.lastUpdated) {
+      return `Market data refreshed ${new Date(snapshot.lastUpdated).toLocaleString()}`
+    }
+    return null
+  }
 
   return (
     <div className="app-shell">
@@ -110,15 +243,16 @@ function App() {
           </div>
 
           <div className="controls-grid">
-            <SliderControl
+            <StaticControl
               label="ETH APR"
-              value={ethApr}
-              onChange={setEthApr}
-              min={0}
-              max={20}
-              step={0.1}
-              formatter={formatPercent}
-              hint="Assumed staking yield on ETH."
+              value={
+                ethAprPercent !== null
+                  ? formatPercent(ethAprPercent)
+                  : loading
+                  ? 'Loading...'
+                  : '—'
+              }
+              hint="Average 31-day staking APR pulled from backend."
             />
             <SliderControl
               label="Staked ETH"
@@ -132,23 +266,55 @@ function App() {
             />
             <SliderControl
               label="ETH Price"
-              value={ethPrice}
-              onChange={setEthPrice}
-              min={500}
-              max={10000}
-              step={50}
-              formatter={formatCurrency}
-              hint="Current market price of ETH."
+              value={ethPriceDeltaPct}
+              onChange={setEthPriceDeltaPct}
+              min={-100}
+              max={100}
+              step={1}
+              formatter={(value) => `${value.toFixed(0)}%`}
+              valueLabel={
+                ethPriceAdjusted !== null
+                  ? formatPriceWithDelta(ethPriceAdjusted, ethPriceDeltaPct) ??
+                    formatCurrency(ethPriceAdjusted)
+                  : loading
+                  ? 'Loading...'
+                  : '—'
+              }
+              minLabel="-100%"
+              maxLabel="+100%"
+              hint={
+                ethPriceBaseline !== null
+                  ? `Baseline ${formatCurrency(ethPriceBaseline)} · adjust ±100%`
+                  : 'Baseline price not available yet.'
+              }
+              disabled={ethPriceBaseline === null || loading}
             />
             <SliderControl
               label="SSV Price"
-              value={ssvPrice}
-              onChange={setSsvPrice}
-              min={5}
-              max={200}
-              step={1}
-              formatter={formatCurrency}
-              hint="Spot price of SSV token."
+              value={ssvPriceDeltaPct}
+              onChange={setSsvPriceDeltaPct}
+              min={-100}
+              max={1000}
+              step={5}
+              formatter={(value) => `${value.toFixed(0)}%`}
+              valueLabel={
+                ssvPriceAdjusted !== null
+                  ? formatPriceWithDelta(ssvPriceAdjusted, ssvPriceDeltaPct) ??
+                    formatCurrency(ssvPriceAdjusted)
+                  : loading
+                  ? 'Loading...'
+                  : '—'
+              }
+              minLabel="-100%"
+              maxLabel="+1000%"
+              hint={
+                ssvPriceBaseline !== null
+                  ? `Baseline ${formatCurrency(
+                      ssvPriceBaseline
+                    )} · adjust from -100% to +1,000%`
+                  : 'Baseline price not available yet.'
+              }
+              disabled={ssvPriceBaseline === null || loading}
             />
             <SliderControl
               label="% Staked SSV"
@@ -160,6 +326,12 @@ function App() {
               formatter={formatPercent}
               hint="Portion of supply participating in staking."
             />
+          </div>
+          <div className="data-status">
+            {renderStatusMessage()}
+            {!loading && !error && !snapshot
+              ? 'No market data received yet.'
+              : null}
           </div>
         </section>
       </main>
