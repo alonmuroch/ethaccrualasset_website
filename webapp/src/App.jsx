@@ -1,10 +1,13 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import './App.css'
 import { fetchMarketSnapshot } from './api'
 import FullLogoWhite from './assets/full_logo_white.svg'
 import faqMarkdown from '../../faq.md?raw'
+
+const TWITTER_SHARE_PAGE_URL =
+  'https://your-deployed-domain.example/ssv-apr-share.html'
 
 const formatCurrency = (value) =>
   new Intl.NumberFormat('en-US', {
@@ -321,6 +324,18 @@ function App() {
       ? formatPercent(ssvAprPercentValue)
       : '—'
 
+  const shareOnTwitter = useCallback(() => {
+    const aprDisplay = formattedSsvApr !== '—' ? formattedSsvApr : 'ETH yield'
+    const tweetText = `SSV is redefining ETH yield.\nIf the SSV - ETH Accrual Token 💎 was live today, SSV stakers would be earning 💰${aprDisplay} in real ETH — aligning the entire network around sustainable, ETH-based rewards. ⚖️\n\nSupport this improvement proposal!\n\n🔗 Calculate your ETH accrual potential:\n👉 https://your-deployed-domain.example/ssv-apr-share.html\n\n#SSV #ETH #Restaking #RealYield via @ssv_network`
+    const shareUrl = new URL('https://twitter.com/intent/tweet')
+    shareUrl.searchParams.set('text', tweetText)
+    shareUrl.searchParams.set('url', TWITTER_SHARE_PAGE_URL)
+    shareUrl.searchParams.set('hashtags', 'SSV,ETH,Restaking')
+    shareUrl.searchParams.set('via', 'ssv_network')
+    shareUrl.searchParams.set('related', 'ssv_network')
+    window.open(shareUrl.toString(), '_blank', 'noopener,noreferrer')
+  }, [formattedSsvApr])
+
   const markdownPlugins = useMemo(() => [remarkGfm], [])
 
   const renderStatusMessage = () => {
@@ -377,6 +392,9 @@ function App() {
             <p className="summary-note">
               Useful for comparing ETH-denominated yields across scenarios.
             </p>
+            <button type="button" className="share-button" onClick={shareOnTwitter}>
+              Share on X
+            </button>
           </article>
         </div>
         <div className="summary-text">

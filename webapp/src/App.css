@@ -151,6 +151,39 @@
   font-size: 0.9rem;
 }
 
+.share-button {
+  align-self: flex-start;
+  margin-top: 1rem;
+  padding: 0.6rem 1.2rem;
+  border-radius: 999px;
+  border: none;
+  background: #1d9bf0;
+  color: #fff;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+  box-shadow: 0 12px 24px rgba(29, 155, 240, 0.25);
+}
+
+.share-button:hover {
+  background: #1580c8;
+  transform: translateY(-1px);
+}
+
+.share-button:active {
+  transform: translateY(0);
+  box-shadow: 0 8px 16px rgba(29, 155, 240, 0.25);
+}
+
+.share-button:focus-visible {
+  outline: 2px solid #93c5fd;
+  outline-offset: 2px;
+}
+
 .summary-text {
   color: #475569;
   line-height: 1.6;
