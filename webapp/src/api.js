@@ -1,6 +1,15 @@
-const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL ??
-  (import.meta.env.PROD ? 'https://api.ethaccrualtoken.com' : 'http://localhost:4000')
+const resolveApiBaseUrl = () => {
+  const raw = import.meta.env.VITE_API_BASE_URL?.trim()
+  const fallback = import.meta.env.PROD
+    ? 'https://api.ethaccrualtoken.com'
+    : 'http://localhost:4000'
+
+  if (!raw) return fallback
+  if (/^https?:\/\//i.test(raw)) return raw
+  return `https://${raw}`
+}
+
+const API_BASE_URL = resolveApiBaseUrl()
 
 async function fetchJson(path) {
   const url = `${API_BASE_URL}${path}`
