@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import './App.css'
 import { fetchMarketSnapshot } from './api'
+import FullLogoWhite from './assets/full_logo_white.svg'
+import faqMarkdown from '../../faq.md?raw'
 
 const formatCurrency = (value) =>
   new Intl.NumberFormat('en-US', {
@@ -317,6 +321,8 @@ function App() {
       ? formatPercent(ssvAprPercentValue)
       : '—'
 
+  const markdownPlugins = useMemo(() => [remarkGfm], [])
+
   const renderStatusMessage = () => {
     if (loading && !snapshot) {
       return 'Loading market data...'
@@ -333,45 +339,46 @@ function App() {
   return (
     <div className="app-shell">
       <header className="topbar">
-        <div className="brand">
-          <span className="brand-logo">EA</span>
-          <span className="brand-name">ETH Accrual Asset</span>
-        </div>
+        <img
+          className="brand-logo"
+          src={FullLogoWhite}
+          alt="SSV Network logo"
+        />
+        <span className="brand-name">SSV - ETH Accrual Asset</span>
         <nav className="top-nav">
           <a href="#" className="active">
-            Dashboard
+            Calculator
           </a>
-          <a href="#">Metrics</a>
-          <a href="#">Sources</a>
+          <a href="#faq">FAQ</a>
         </nav>
       </header>
 
       <main className="main">
       <section className="summary-section">
-        <article className="metric-card highlight summary-card">
-          <div className="summary-values">
-            <div className="summary-value">
-              <span className="metric-label">Overall Yearly Fees</span>
-              <span className="metric-value">{formattedOverallFees}</span>
-              <span className="metric-subtitle">USD</span>
-              <p className="summary-description">
-                The yearly fees the entire SSV Network accumulates under the assumptions you configure below.
-              </p>
-            </div>
-            <div className="summary-divider" aria-hidden="true" />
-            <div className="summary-value">
-              <span className="metric-label">SSV APR</span>
-              <span className="metric-value">{formattedSsvApr}</span>
-              <span className="metric-subtitle">percent</span>
-              <p className="summary-description">
-                The resulting APR, paid in ETH, for staking SSV with those same inputs.
-              </p>
-            </div>
-          </div>
-          <p className="summary-note">
-            Both values update instantly as you adjust the assumptions below.
-          </p>
-        </article>
+        <div className="summary-pull">
+          <article className="metric-card highlight summary-card">
+              <span className="metric-label">Network Fee (Yearly)</span>
+            <span className="metric-value">{formattedOverallFees}</span>
+            <span className="metric-subtitle">USD</span>
+            <p className="summary-description">
+              The yearly fees the entire SSV Network accumulates under the assumptions you configure below.
+            </p>
+            <p className="summary-note">
+              Updates instantly as you adjust the inputs below.
+            </p>
+          </article>
+          <article className="metric-card summary-card">
+            <span className="metric-label">Staked SSV APR</span>
+            <span className="metric-value">{formattedSsvApr}</span>
+            <span className="metric-subtitle">percent</span>
+            <p className="summary-description">
+              The resulting APR, paid in ETH, for staking SSV with those same inputs.
+            </p>
+            <p className="summary-note">
+              Useful for comparing ETH-denominated yields across scenarios.
+            </p>
+          </article>
+        </div>
         <div className="summary-text">
           <p className="summary-disclaimer summary-disclaimer--headline">
             This is a calculator showcasing how SSV can become an ETH accrual token. For this proposal to happen it
@@ -578,7 +585,32 @@ function App() {
               : null}
           </div>
         </section>
+        <section className="faq-section" id="faq">
+          <div className="section-header">
+            <h2>Frequently Asked Questions</h2>
+            <p>
+              Explore the key ideas behind turning SSV into an ETH accrual token, plus details on fees, staking and this calculator.
+            </p>
+          </div>
+          <article className="faq-content">
+            <ReactMarkdown remarkPlugins={markdownPlugins}>
+              {faqMarkdown}
+            </ReactMarkdown>
+          </article>
+        </section>
       </main>
+
+      <footer className="footer">
+        <span>© {new Date().getFullYear()} SSV - ETH Accrual Asset</span>
+        <div className="footer-links">
+          <a href="https://github.com/alonmuroch/ethaccrualasset_website" target="_blank" rel="noreferrer">
+            GitHub
+          </a>
+          <a href="https://x.com/ssv_network" target="_blank" rel="noreferrer">
+            Twitter
+          </a>
+        </div>
+      </footer>
     </div>
   )
 }

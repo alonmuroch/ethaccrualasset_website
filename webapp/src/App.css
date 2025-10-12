@@ -10,40 +10,37 @@
   background: linear-gradient(135deg, #2563eb, #1d4ed8);
   color: #fff;
   padding: 1.75rem clamp(1.5rem, 2vw + 1rem, 3rem);
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
   align-items: center;
-  justify-content: space-between;
   gap: 1.5rem;
   box-shadow: 0 4px 30px rgba(37, 99, 235, 0.3);
 }
 
-.brand {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  font-weight: 600;
-  letter-spacing: 0.03em;
-}
-
 .brand-logo {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 2.75rem;
+  display: inline-block;
   height: 2.75rem;
-  border-radius: 1rem;
-  background: rgba(255, 255, 255, 0.16);
-  font-size: 1.1rem;
+  width: auto;
+  max-width: 10rem;
+  border-radius: 0.9rem;
+  filter: drop-shadow(0 8px 18px rgba(30, 64, 175, 0.3));
+  grid-column: 1;
+  justify-self: start;
 }
 
 .brand-name {
   font-size: clamp(1.2rem, 0.5rem + 1.5vw, 1.6rem);
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  grid-column: 2;
+  justify-self: center;
 }
 
 .top-nav {
   display: flex;
   gap: 1rem;
+  grid-column: 3;
+  justify-self: end;
 }
 
 .top-nav a {
@@ -64,6 +61,32 @@
   background-color: #fff;
 }
 
+@media (max-width: 720px) {
+  .topbar {
+    grid-template-columns: 1fr;
+    justify-items: center;
+  }
+
+  .top-nav {
+    grid-column: 1;
+  }
+
+  .brand-name {
+    justify-self: center;
+    text-align: center;
+  }
+
+  .brand-logo {
+    justify-self: center;
+  }
+
+  .top-nav {
+    justify-self: center;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+}
+
 .main {
   flex: 1;
   margin-top: -2.5rem;
@@ -78,22 +101,22 @@
 }
 
 
+
 .summary-section {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  grid-template-columns: minmax(360px, 600px) minmax(260px, 1fr);
   align-items: stretch;
   gap: 2rem;
   margin: 0 0 2.5rem;
   width: 100%;
 }
 
-.summary-card {
-  height: 100%;
+.summary-pull {
+  display: grid;
+  gap: 1.5rem;
 }
 
-.summary-content {
-  display: flex;
-  flex-direction: column;
+.summary-card {
   height: 100%;
 }
 
@@ -172,6 +195,31 @@
   margin-bottom: 1rem;
 }
 
+.footer {
+  padding: 1.5rem clamp(1.5rem, 3vw + 1rem, 3rem);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.9rem;
+  color: #64748b;
+}
+
+.footer-links {
+  display: flex;
+  gap: 1.25rem;
+}
+
+.footer a {
+  color: #1d4ed8;
+  font-weight: 600;
+}
+
+.footer a:hover {
+  text-decoration: underline;
+}
+
 @media (max-width: 768px) {
   .summary-section {
     grid-template-columns: 1fr;
@@ -181,8 +229,8 @@
     padding: 1rem;
   }
 
-  .summary-divider {
-    display: none;
+  .summary-pull {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -244,6 +292,100 @@
 
 .controls-grid.secondary {
   margin-top: -0.5rem;
+}
+
+.faq-section {
+  margin-top: 3rem;
+  padding: clamp(1.5rem, 3vw + 1rem, 3rem);
+  background: rgba(255, 255, 255, 0.8);
+  border-radius: 1.5rem;
+  box-shadow: 0 20px 45px rgba(15, 23, 42, 0.08);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  display: grid;
+  gap: 1.75rem;
+}
+
+.faq-content :where(h1, h2, h3, h4) {
+  color: #1e293b;
+  margin: 1.75rem 0 0.85rem;
+  line-height: 1.3;
+}
+
+.faq-content h1 {
+  font-size: clamp(1.6rem, 1.1rem + 2vw, 2.2rem);
+}
+
+.faq-content h2 {
+  font-size: clamp(1.3rem, 1rem + 1.5vw, 1.8rem);
+}
+
+.faq-content h3 {
+  font-size: clamp(1.1rem, 0.9rem + 1vw, 1.35rem);
+}
+
+.faq-content p {
+  margin: 0.75rem 0;
+  color: #475569;
+  line-height: 1.65;
+}
+
+.faq-content a {
+  color: #2563eb;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.faq-content a:hover {
+  text-decoration: underline;
+}
+
+.faq-content ul {
+  margin: 0.5rem 0 1.5rem 1.5rem;
+  color: #475569;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.faq-content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1.5rem 0;
+  font-size: 0.95rem;
+  box-shadow: 0 10px 25px rgba(15, 23, 42, 0.05);
+}
+
+.faq-content th,
+.faq-content td {
+  padding: 0.75rem 1rem;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  text-align: left;
+}
+
+.faq-content th {
+  background-color: rgba(37, 99, 235, 0.08);
+  color: #1e293b;
+  font-weight: 600;
+}
+
+.faq-content code,
+.faq-content pre {
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  font-size: 0.9rem;
+  background: rgba(15, 23, 42, 0.05);
+  padding: 0.15rem 0.4rem;
+  border-radius: 0.35rem;
+  color: #0f172a;
+}
+
+.faq-content pre {
+  padding: 1rem;
+  overflow-x: auto;
+}
+
+.faq-content hr {
+  border: none;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.35);
+  margin: 2.5rem 0;
 }
 
 .control-card {
