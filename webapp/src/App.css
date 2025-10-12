@@ -65,10 +65,15 @@
   .topbar {
     grid-template-columns: 1fr;
     justify-items: center;
+    padding: 1.5rem 1.25rem;
+    gap: 1rem;
   }
 
   .top-nav {
     grid-column: 1;
+    width: 100%;
+    justify-content: center;
+    flex-wrap: wrap;
   }
 
   .brand-name {
@@ -78,12 +83,35 @@
 
   .brand-logo {
     justify-self: center;
+    height: 2.4rem;
   }
 
-  .top-nav {
-    justify-self: center;
-    flex-wrap: wrap;
-    justify-content: center;
+  .main {
+    margin-top: -1.75rem;
+    padding: 1.5rem 1.25rem 2.25rem;
+  }
+
+  .summary-section {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+
+  .summary-text {
+    padding: 1.25rem;
+  }
+
+  .metric-card {
+    padding: 1.5rem;
+  }
+
+  .controls-grid,
+  .controls-grid.secondary {
+    grid-template-columns: 1fr;
+    gap: 1.25rem;
+  }
+
+  .faq-section {
+    padding: 1.25rem;
   }
 }
 
@@ -264,6 +292,81 @@
 
   .summary-pull {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 540px) {
+  .app-shell {
+    background-color: #e2e8f0;
+  }
+
+  .topbar {
+    padding: 1.25rem 1rem;
+  }
+
+  .brand-logo {
+    height: 2.1rem;
+  }
+
+  .brand-name {
+    font-size: 1.1rem;
+  }
+
+  .main {
+    margin-top: -1.25rem;
+    padding: 1.25rem 1rem 2rem;
+  }
+
+  .metric-card {
+    padding: 1.25rem;
+    border-radius: 1rem;
+  }
+
+  .metric-value {
+    font-size: clamp(2rem, 1.6rem + 3vw, 2.4rem);
+  }
+
+  .share-button {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .control-card {
+    padding: 1.25rem;
+    border-radius: 0.95rem;
+  }
+
+  .control-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+
+  input[type='range'] {
+    width: 100%;
+    height: 32px;
+  }
+
+  .faq-section {
+    margin-top: 2.5rem;
+  }
+
+  .faq-content table {
+    display: block;
+    width: 100%;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+
+  .footer {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+
+  .footer-links {
+    width: 100%;
+    justify-content: flex-start;
   }
 }
 
