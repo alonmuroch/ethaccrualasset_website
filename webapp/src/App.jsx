@@ -9,6 +9,18 @@ import faqMarkdown from '../../faq.md?raw'
 const TWITTER_SHARE_PAGE_URL =
   'https://your-deployed-domain.example/ssv-apr-share.html'
 
+const resolveClientRefreshInterval = () => {
+  const fallback = 5 * 60 * 1000
+  const rawValue = import.meta.env.VITE_API_REFRESH_INTERVAL_MS
+  const parsed = Number(rawValue)
+  if (Number.isFinite(parsed) && parsed >= 0) {
+    return parsed
+  }
+  return fallback
+}
+
+const MARKET_REFRESH_INTERVAL_MS = resolveClientRefreshInterval()
+
 const formatCurrency = (value) =>
   new Intl.NumberFormat('en-US', {
     style: 'currency',
@@ -156,10 +168,19 @@ function App() {
 
   useEffect(() => {
     let isMounted = true
+    let fetchInProgress = false
+    let intervalId
 
-    const loadSnapshot = async () => {
+    const loadSnapshot = async ({ silent = false } = {}) => {
+      if (fetchInProgress) {
+        return
+      }
+      fetchInProgress = true
+
       try {
-        setLoading(true)
+        if (!silent) {
+          setLoading(true)
+        }
         const data = await fetchMarketSnapshot()
         if (!isMounted) return
 
@@ -212,6 +233,7 @@ function App() {
             : 'Failed to load market data.'
         )
       } finally {
+        fetchInProgress = false
         if (isMounted) {
           setLoading(false)
         }
@@ -220,8 +242,17 @@ function App() {
 
     loadSnapshot()
 
+    if (MARKET_REFRESH_INTERVAL_MS > 0) {
+      intervalId = window.setInterval(() => {
+        loadSnapshot({ silent: true })
+      }, MARKET_REFRESH_INTERVAL_MS)
+    }
+
     return () => {
       isMounted = false
+      if (intervalId) {
+        window.clearInterval(intervalId)
+      }
     }
   }, [])
 
