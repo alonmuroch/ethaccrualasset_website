@@ -39,6 +39,77 @@ const formatPercent = (value) =>
     maximumFractionDigits: 1,
   })}%`
 
+const DEFAULT_SLIDER_DELTA_RANGES = Object.freeze({
+  ethPrice: { min: -100, max: 200 },
+  ssvPrice: { min: -100, max: 2000 },
+  stakedEth: { min: -25, max: 200 },
+})
+
+const readEnvNumber = (key) => {
+  const raw = import.meta.env?.[key]
+  if (raw === undefined || raw === null || raw === '') return null
+  const numeric = Number(raw)
+  return Number.isFinite(numeric) ? numeric : null
+}
+
+const normalizeRange = (range, defaults) => {
+  const fallback = { ...defaults }
+  if (!range || typeof range !== 'object') {
+    return fallback
+  }
+
+  const minCandidate =
+    typeof range.min === 'number' && Number.isFinite(range.min)
+      ? range.min
+      : fallback.min
+  const maxCandidate =
+    typeof range.max === 'number' && Number.isFinite(range.max)
+      ? range.max
+      : fallback.max
+
+  if (minCandidate > maxCandidate) {
+    return fallback
+  }
+
+  return { min: minCandidate, max: maxCandidate }
+}
+
+const resolveInitialRange = (defaults, minKey, maxKey) => {
+  const min = readEnvNumber(minKey)
+  const max = readEnvNumber(maxKey)
+  return normalizeRange(
+    {
+      min,
+      max,
+    },
+    defaults
+  )
+}
+
+const INITIAL_SLIDER_DELTA_RANGES = {
+  ethPrice: resolveInitialRange(
+    DEFAULT_SLIDER_DELTA_RANGES.ethPrice,
+    'VITE_ETH_PRICE_DELTA_MIN',
+    'VITE_ETH_PRICE_DELTA_MAX'
+  ),
+  ssvPrice: resolveInitialRange(
+    DEFAULT_SLIDER_DELTA_RANGES.ssvPrice,
+    'VITE_SSV_PRICE_DELTA_MIN',
+    'VITE_SSV_PRICE_DELTA_MAX'
+  ),
+  stakedEth: resolveInitialRange(
+    DEFAULT_SLIDER_DELTA_RANGES.stakedEth,
+    'VITE_STAKED_ETH_DELTA_MIN',
+    'VITE_STAKED_ETH_DELTA_MAX'
+  ),
+}
+
+const cloneRangeSet = (ranges) => ({
+  ethPrice: { ...ranges.ethPrice },
+  ssvPrice: { ...ranges.ssvPrice },
+  stakedEth: { ...ranges.stakedEth },
+})
+
 const SliderControl = ({
   label,
   value,
@@ -122,6 +193,18 @@ const computeAdjustedValue = (baseline, deltaPct) => {
 const NETWORK_FEE_BASELINE = 0.01
 const STAKED_SSV_BASELINE = 50
 
+const clamp = (value, min, max) => Math.min(Math.max(value, min), max)
+
+const formatDeltaLabel = (value) => {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return '—'
+  const formatted = value.toLocaleString(undefined, {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  })
+  const sign = value > 0 ? '+' : ''
+  return `${sign}${formatted}%`
+}
+
 const formatValueWithDelta = (value, deltaPct, formatter) => {
   if (typeof value !== 'number' || !Number.isFinite(value)) {
     return null
@@ -153,6 +236,9 @@ function App() {
   const [snapshot, setSnapshot] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
+  const [deltaRanges, setDeltaRanges] = useState(() =>
+    cloneRangeSet(INITIAL_SLIDER_DELTA_RANGES)
+  )
 
   const [ethAprPercent, setEthAprPercent] = useState(null)
   const [ethPriceBaseline, setEthPriceBaseline] = useState(null)
@@ -160,9 +246,27 @@ function App() {
   const [stakedEthBaseline, setStakedEthBaseline] = useState(null)
   const [ssvTotalSupply, setSsvTotalSupply] = useState(null)
 
-  const [ethPriceDeltaPct, setEthPriceDeltaPct] = useState(0)
-  const [ssvPriceDeltaPct, setSsvPriceDeltaPct] = useState(0)
-  const [stakedEthDeltaPct, setStakedEthDeltaPct] = useState(0)
+  const [ethPriceDeltaPct, setEthPriceDeltaPct] = useState(() =>
+    clamp(
+      0,
+      INITIAL_SLIDER_DELTA_RANGES.ethPrice.min,
+      INITIAL_SLIDER_DELTA_RANGES.ethPrice.max
+    )
+  )
+  const [ssvPriceDeltaPct, setSsvPriceDeltaPct] = useState(() =>
+    clamp(
+      0,
+      INITIAL_SLIDER_DELTA_RANGES.ssvPrice.min,
+      INITIAL_SLIDER_DELTA_RANGES.ssvPrice.max
+    )
+  )
+  const [stakedEthDeltaPct, setStakedEthDeltaPct] = useState(() =>
+    clamp(
+      0,
+      INITIAL_SLIDER_DELTA_RANGES.stakedEth.min,
+      INITIAL_SLIDER_DELTA_RANGES.stakedEth.max
+    )
+  )
   const [networkFeeDeltaPct, setNetworkFeeDeltaPct] = useState(0)
   const [stakedSsvPercent, setStakedSsvPercent] = useState(STAKED_SSV_BASELINE)
 
@@ -185,6 +289,35 @@ function App() {
         if (!isMounted) return
 
         setSnapshot(data)
+
+        const deltaConfig = data?.config?.deltaRanges
+        if (deltaConfig) {
+          const nextRanges = {
+            ethPrice: normalizeRange(
+              deltaConfig.ethPrice,
+              INITIAL_SLIDER_DELTA_RANGES.ethPrice
+            ),
+            ssvPrice: normalizeRange(
+              deltaConfig.ssvPrice,
+              INITIAL_SLIDER_DELTA_RANGES.ssvPrice
+            ),
+            stakedEth: normalizeRange(
+              deltaConfig.stakedEth,
+              INITIAL_SLIDER_DELTA_RANGES.stakedEth
+            ),
+          }
+
+          setDeltaRanges(nextRanges)
+          setEthPriceDeltaPct((previous) =>
+            clamp(previous, nextRanges.ethPrice.min, nextRanges.ethPrice.max)
+          )
+          setSsvPriceDeltaPct((previous) =>
+            clamp(previous, nextRanges.ssvPrice.min, nextRanges.ssvPrice.max)
+          )
+          setStakedEthDeltaPct((previous) =>
+            clamp(previous, nextRanges.stakedEth.min, nextRanges.stakedEth.max)
+          )
+        }
 
         const stakingApr = data?.data?.stakingApr?.value
         if (typeof stakingApr === 'number' && Number.isFinite(stakingApr)) {
@@ -479,8 +612,8 @@ function App() {
               label="Staked ETH"
               value={stakedEthDeltaPct}
               onChange={setStakedEthDeltaPct}
-              min={-25}
-              max={100}
+              min={deltaRanges.stakedEth.min}
+              max={deltaRanges.stakedEth.max}
               step={1}
               formatter={(value) => `${value.toFixed(0)}%`}
               valueLabel={
@@ -494,13 +627,15 @@ function App() {
                   ? 'Loading...'
                   : '—'
               }
-              minLabel="-25%"
-              maxLabel="+100%"
+              minLabel={formatDeltaLabel(deltaRanges.stakedEth.min)}
+              maxLabel={formatDeltaLabel(deltaRanges.stakedEth.max)}
               hint={
                 stakedEthBaseline !== null
                   ? `Baseline ${formatEthAmount(
                       stakedEthBaseline
-                    )} · adjust from -25% to +100%`
+                    )} · adjust from ${formatDeltaLabel(
+                      deltaRanges.stakedEth.min
+                    )} to ${formatDeltaLabel(deltaRanges.stakedEth.max)}`
                   : 'Baseline staked ETH not available yet.'
               }
               disabled={stakedEthBaseline === null || loading}
@@ -513,8 +648,8 @@ function App() {
               label="ETH Price"
               value={ethPriceDeltaPct}
               onChange={setEthPriceDeltaPct}
-              min={-100}
-              max={100}
+              min={deltaRanges.ethPrice.min}
+              max={deltaRanges.ethPrice.max}
               step={1}
               formatter={(value) => `${value.toFixed(0)}%`}
               valueLabel={
@@ -528,11 +663,15 @@ function App() {
                   ? 'Loading...'
                   : '—'
               }
-              minLabel="-100%"
-              maxLabel="+100%"
+              minLabel={formatDeltaLabel(deltaRanges.ethPrice.min)}
+              maxLabel={formatDeltaLabel(deltaRanges.ethPrice.max)}
               hint={
                 ethPriceBaseline !== null
-                  ? `Baseline ${formatCurrency(ethPriceBaseline)} · adjust ±100%`
+                  ? `Baseline ${formatCurrency(
+                      ethPriceBaseline
+                    )} · adjust from ${formatDeltaLabel(
+                      deltaRanges.ethPrice.min
+                    )} to ${formatDeltaLabel(deltaRanges.ethPrice.max)}`
                   : 'Baseline price not available yet.'
               }
               disabled={ethPriceBaseline === null || loading}
@@ -546,8 +685,8 @@ function App() {
               label="SSV Price"
               value={ssvPriceDeltaPct}
               onChange={setSsvPriceDeltaPct}
-              min={-100}
-              max={1000}
+              min={deltaRanges.ssvPrice.min}
+              max={deltaRanges.ssvPrice.max}
               step={5}
               formatter={(value) => `${value.toFixed(0)}%`}
               valueLabel={
@@ -561,13 +700,15 @@ function App() {
                 ? 'Loading...'
                 : '—'
               }
-              minLabel="-100%"
-              maxLabel="+1000%"
+              minLabel={formatDeltaLabel(deltaRanges.ssvPrice.min)}
+              maxLabel={formatDeltaLabel(deltaRanges.ssvPrice.max)}
               hint={
                 ssvPriceBaseline !== null
                   ? `Baseline ${formatCurrency(
                       ssvPriceBaseline
-                    )} · adjust from -100% to +1,000%`
+                    )} · adjust from ${formatDeltaLabel(
+                      deltaRanges.ssvPrice.min
+                    )} to ${formatDeltaLabel(deltaRanges.ssvPrice.max)}`
                   : 'Baseline price not available yet.'
               }
               disabled={ssvPriceBaseline === null || loading}
