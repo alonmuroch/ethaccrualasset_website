@@ -191,9 +191,18 @@ const computeAdjustedValue = (baseline, deltaPct) => {
 }
 
 const NETWORK_FEE_BASELINE = 0.01
-const STAKED_SSV_BASELINE = 50
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max)
+
+const resolveStakedSsvBaselinePercent = () => {
+  const fallback = 25
+  const envValue = readEnvNumber('VITE_STAKED_SSV_BASELINE_PERCENT')
+  if (envValue === null) return fallback
+  const rounded = Math.round(envValue)
+  return clamp(rounded, 0, 100)
+}
+
+const STAKED_SSV_BASELINE = resolveStakedSsvBaselinePercent()
 
 const formatDeltaLabel = (value) => {
   if (typeof value !== 'number' || !Number.isFinite(value)) return '—'
@@ -523,7 +532,7 @@ function App() {
           src={FullLogoWhite}
           alt="SSV Network logo"
         />
-        <span className="brand-name">SSV - ETH Accrual Asset</span>
+        <span className="brand-name">SSV - ETH Accrual Token</span>
         <nav className="top-nav">
           <a href="#" className="active">
             Calculator
@@ -591,7 +600,7 @@ function App() {
           <div className="section-header">
             <h2>Adjust Assumptions</h2>
             <p>
-              Tune the inputs below to explore how the ETH Accrual Asset reacts
+              Tune the inputs below to explore how the ETH Accrual Token reacts
               under different market conditions.
             </p>
           </div>
@@ -791,7 +800,7 @@ function App() {
       </main>
 
       <footer className="footer">
-        <span>© {new Date().getFullYear()} SSV - ETH Accrual Asset</span>
+        <span>© {new Date().getFullYear()} SSV - ETH Accrual Token</span>
         <div className="footer-links">
           <a href="https://github.com/alonmuroch/ethaccrualasset_website" target="_blank" rel="noreferrer">
             GitHub

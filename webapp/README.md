@@ -1,4 +1,4 @@
-# ETH Accrual Asset Webapp
+# ETH Accrual Token Webapp
 
 Frontend dashboard built with Vite + React. It consumes the companion backend to pre-fill market assumptions (staking APR, ETH price, SSV price) and lets you explore scenarios by adjusting sliders.
 
