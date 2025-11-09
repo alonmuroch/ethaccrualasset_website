@@ -278,6 +278,10 @@ function App() {
   )
   const [networkFeeDeltaPct, setNetworkFeeDeltaPct] = useState(0)
   const [stakedSsvPercent, setStakedSsvPercent] = useState(STAKED_SSV_BASELINE)
+  const [headerUiState, setHeaderUiState] = useState(() => ({
+    isElevated: false,
+    showApr: false,
+  }))
 
   useEffect(() => {
     let isMounted = true
@@ -524,21 +528,72 @@ function App() {
     return null
   }
 
+  useEffect(() => {
+    const handleScroll = () => {
+      const scrollY = window.scrollY ?? window.pageYOffset ?? 0
+      const nextState = {
+        isElevated: scrollY > 4,
+        showApr: scrollY > 40,
+      }
+
+      setHeaderUiState((previous) => {
+        if (
+          previous.isElevated === nextState.isElevated &&
+          previous.showApr === nextState.showApr
+        ) {
+          return previous
+        }
+        return nextState
+      })
+    }
+
+    handleScroll()
+    window.addEventListener('scroll', handleScroll, { passive: true })
+    return () => {
+      window.removeEventListener('scroll', handleScroll)
+    }
+  }, [])
+
+  const aprAvailable = formattedSsvApr !== '—'
+  const showAprInTitle = headerUiState.showApr && aprAvailable
+  const topbarClassName = `topbar${headerUiState.isElevated ? ' topbar--scrolled' : ''}`
+
   return (
     <div className="app-shell">
-      <header className="topbar">
+      <header className={topbarClassName}>
         <img
           className="brand-logo"
           src={FullLogoWhite}
           alt="SSV Network logo"
         />
-        <span className="brand-name">SSV - ETH Accrual Token</span>
-        <nav className="top-nav">
-          <a href="#" className="active">
-            Calculator
-          </a>
-          <a href="#faq">FAQ</a>
-        </nav>
+        <div className="topbar-center">
+          <span
+            className={`brand-name${showAprInTitle ? ' brand-name--hidden' : ''}`}
+            aria-hidden={showAprInTitle}
+          >
+            SSV - ETH Accrual Token
+          </span>
+          {aprAvailable ? (
+            <div
+              className={`topbar-apr topbar-apr--inline${
+                showAprInTitle ? ' topbar-apr--visible' : ''
+              }`}
+              aria-live="polite"
+              aria-hidden={!showAprInTitle}
+            >
+              <span className="topbar-apr-label">Staked SSV APR</span>
+              <span className="topbar-apr-value">{formattedSsvApr}</span>
+            </div>
+          ) : null}
+        </div>
+        <div className="topbar-actions">
+          <nav className="top-nav">
+            <a href="#" className="active">
+              Calculator
+            </a>
+            <a href="#faq">FAQ</a>
+          </nav>
+        </div>
       </header>
 
       <main className="main">
