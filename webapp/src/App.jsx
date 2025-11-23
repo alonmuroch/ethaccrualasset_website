@@ -208,8 +208,11 @@ const YearlyImpChart = ({ data }) => {
 
   return (
     <div className="imp-chart-wrapper" aria-label="Yearly IMP minted versus SSV price">
+      <div className="imp-chart-title">
+        <span>Yearly IMP vs. SSV Price</span>
+      </div>
       <ResponsiveContainer width="100%" height={260}>
-        <LineChart data={data} margin={{ top: 10, right: 18, left: 0, bottom: 10 }}>
+        <LineChart data={data} margin={{ top: 10, right: 24, left: 0, bottom: 10 }}>
           <XAxis
             dataKey="price"
             tickFormatter={(value) =>
@@ -217,19 +220,77 @@ const YearlyImpChart = ({ data }) => {
             }
           />
           <YAxis
+            yAxisId="ssv"
             tickFormatter={(value) =>
               typeof value === 'number' ? `${(value / 1000).toFixed(0)}k` : value
             }
           />
-          <Tooltip
-            formatter={(value) =>
-              typeof value === 'number' ? `${value.toLocaleString()} SSV` : value
+          <YAxis
+            yAxisId="boost"
+            orientation="right"
+            tickFormatter={(value) =>
+              typeof value === 'number' ? `${value.toFixed(1)}%` : value
             }
+          />
+          <Tooltip
+            formatter={(value, name, entry) => {
+              const dataKey = entry?.dataKey
+              if (dataKey === 'minted') {
+                const mintedNumber = Number(value)
+                const price = Number(entry?.payload?.price)
+                const formattedSsv = Number.isFinite(mintedNumber)
+                  ? `${mintedNumber.toLocaleString('en-US', {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })} SSV`
+                  : value
+                const usdValue =
+                  Number.isFinite(mintedNumber) && Number.isFinite(price)
+                    ? mintedNumber * price
+                    : null
+                const formattedUsd =
+                  usdValue !== null
+                    ? formatCurrency(usdValue, {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })
+                    : null
+                return [
+                  formattedUsd ? `${formattedSsv} (${formattedUsd})` : formattedSsv,
+                  'Yearly IMP',
+                ]
+              }
+              if (dataKey === 'boostPercent') {
+                const boostNumber = Number(value)
+                return [
+                  Number.isFinite(boostNumber)
+                    ? `${boostNumber.toFixed(2)}%`
+                    : value,
+                  'IMP Actual Boost',
+                ]
+              }
+              return [value, name]
+            }}
             labelFormatter={(value) =>
               typeof value === 'number' ? `$${value.toFixed(2)}` : value
             }
           />
-          <Line type="monotone" dataKey="minted" stroke="#2563eb" dot={false} />
+          <Line
+            type="monotone"
+            dataKey="minted"
+            name="Yearly IMP"
+            stroke="#2563eb"
+            dot={false}
+            yAxisId="ssv"
+          />
+          <Line
+            type="monotone"
+            dataKey="boostPercent"
+            name="IMP Actual Boost"
+            stroke="#f97316"
+            dot={false}
+            yAxisId="boost"
+          />
         </LineChart>
       </ResponsiveContainer>
     </div>
@@ -833,7 +894,13 @@ function App() {
       finalEthPrice === null ||
       finalEthPrice <= 0 ||
       impTierBoostMultiplier === null ||
-      impTierBoostMultiplier <= 0
+      impTierBoostMultiplier <= 0 ||
+      totalValidators === null ||
+      totalValidators <= 0 ||
+      finalEthPrice === null ||
+      finalEthPrice <= 0 ||
+      finalEthAprDecimal === null ||
+      finalEthAprDecimal <= 0
     ) {
       return []
     }
@@ -866,7 +933,11 @@ function App() {
       if (!Number.isFinite(minted) || minted < 0) {
         continue
       }
-      points.push({ price, minted })
+      const boost =
+        ((minted / totalValidators) * price) / (32 * finalEthPrice * finalEthAprDecimal)
+      const boostPercent =
+        typeof boost === 'number' && Number.isFinite(boost) ? boost * 100 : null
+      points.push({ price, minted, boostPercent })
     }
 
     return points
@@ -877,6 +948,7 @@ function App() {
     finalEthPrice,
     impTierBoostMultiplier,
     impInflationCapSsv,
+    totalValidators,
   ])
 
   const shareOnTwitter = useCallback(() => {
