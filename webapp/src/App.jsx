@@ -820,7 +820,9 @@ function App() {
       </header>
 
       <main className="main">
-        <section className="summary-section">
+        <section className="calculator-layout">
+          <div className="summary-panel">
+            <section className="summary-section">
           <div className="summary-tabs" role="tablist" aria-label="Calculator modes">
             {SUMMARY_TABS.map((tab) => {
               const isActive = activeSummaryTab === tab.id
@@ -837,10 +839,15 @@ function App() {
                 </button>
               )
             })}
-          </div>
-          {activeSummaryTab === 'calculator' ? (
-            <>
-              <div className="summary-pull">
+                </div>
+                <div
+                  className={`summary-content${
+                    activeSummaryTab === 'imp' ? ' summary-content--imp' : ''
+                  }`}
+                >
+                {activeSummaryTab === 'calculator' ? (
+                  <>
+                    <div className="summary-pull">
                 <article className="metric-card highlight summary-card">
                   <span className="metric-label">Network Fee (Yearly)</span>
                   <span className="metric-value">{formattedOverallFees}</span>
@@ -894,16 +901,26 @@ function App() {
             </>
           ) : activeSummaryTab === 'imp' ? (
             <>
-              <div className="summary-pull">
-                <article className="metric-card highlight summary-card">
-                  <span className="metric-label">Total Validators</span>
-                  <span className="metric-value">{formattedTotalValidators}</span>
-                  <span className="metric-subtitle">validators</span>
-                  <p className="summary-description">
-                    Derived from your staked ETH assumption (32 ETH per validator).
-                  </p>
-                </article>
-                <article className="metric-card summary-card">
+              <div className="summary-pull imp-layout" aria-live="polite">
+                <div className="metric-stack">
+                  <article className="metric-card highlight summary-card">
+                    <span className="metric-label">Total Validators</span>
+                    <span className="metric-value">{formattedTotalValidators}</span>
+                    <span className="metric-subtitle">validators</span>
+                    <p className="summary-description">
+                      Derived from your staked ETH assumption (32 ETH per validator).
+                    </p>
+                  </article>
+                  <article className="metric-card summary-card">
+                    <span className="metric-label">IMP Actual Boost</span>
+                    <span className="metric-value">{formattedImpActualBoost}</span>
+                    <span className="metric-subtitle">per validator</span>
+                    <p className="summary-description">
+                      Shows the ETH-denominated boost per validator once yearly IMP is converted back to ETH value and normalized by the ETH APR.
+                    </p>
+                  </article>
+                </div>
+                <article className="metric-card summary-card yearly-card full-height">
                   <span className="metric-label">Yearly IMP</span>
                   <span className="metric-value">{formattedImpYearlySsv}</span>
                   <span className="metric-subvalue">≈ {formattedImpYearlySsvUsd}</span>
@@ -922,14 +939,6 @@ function App() {
                       ? 'Inflation cap currently limits yearly IMP.'
                       : 'Awaiting live market data.'}
                     {' '}Higher SSV prices than the break-even push the effective IMP below the cap.
-                  </p>
-                </article>
-                <article className="metric-card summary-card">
-                  <span className="metric-label">IMP Actual Boost</span>
-                  <span className="metric-value">{formattedImpActualBoost}</span>
-                  <span className="metric-subtitle">per validator</span>
-                  <p className="summary-description">
-                    Shows the ETH-denominated boost per validator once yearly IMP is converted back to ETH value and normalized by the ETH APR.
                   </p>
                 </article>
               </div>
@@ -1015,11 +1024,13 @@ function App() {
                 <p className="summary-disclaimer">
                   Active tier highlighted. Ranges outside the table are considered out-of-scope for this IMP program preview.
                 </p>
-              </div>
-            </>
-          )}
-        </section>
-
+                    </div>
+                  </>
+                )}
+                </div>
+              </section>
+            </div>
+          <aside className="controls-panel">
         <section className="controls-section">
           <div className="section-header">
             <h2>Adjust Assumptions</h2>
@@ -1207,6 +1218,8 @@ function App() {
               ? 'No market data received yet.'
               : null}
           </div>
+        </section>
+          </aside>
         </section>
         <section className="faq-section" id="faq">
           <div className="section-header">
