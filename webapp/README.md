@@ -43,7 +43,7 @@ Overall Yearly Fees ÷ (Staked SSV × SSV Price)
 Use the **IMP** tab to model the SSV Incentivized Mainnet Program with the same slider inputs. The tab derives:
 
 - Total validators = `Staked ETH ÷ 32`
-- Yearly IMP (SSV) = `min((Validators × ETH APR × ETH price) ÷ SSV price, Max Inflation × Total SSV)`
+- Yearly IMP (SSV) = `min((Staked ETH × ETH APR × ETH price × Current IMP Tier Boost) ÷ SSV price, Max Inflation × Total SSV)`
 - IMP Actual Boost = `((Yearly IMP ÷ Validators) × SSV price) ÷ (32 × ETH price × ETH APR)`
 
 `VITE_IMP_MAX_INFLATION_PERCENT` (default `15`) controls the max inflation cap applied to the total SSV supply.

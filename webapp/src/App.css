@@ -526,6 +526,30 @@
   margin: 0;
 }
 
+.imp-graph-card {
+  padding: 0;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+
+.imp-chart-wrapper {
+  width: 100%;
+  min-height: 260px;
+}
+
+.imp-chart-placeholder {
+  min-height: 220px;
+  border: 1px dashed rgba(148, 163, 184, 0.6);
+  border-radius: 1rem;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  padding: 1.5rem;
+  color: #94a3b8;
+  font-size: 0.9rem;
+}
+
 .summary-actions {
   display: flex;
   flex-wrap: wrap;
@@ -591,6 +615,10 @@
 
   .summary-pull {
     grid-template-columns: 1fr;
+  }
+
+  .imp-chart-wrapper {
+    min-height: 220px;
   }
 }
 

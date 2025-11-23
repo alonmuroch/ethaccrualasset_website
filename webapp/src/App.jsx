@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import './App.css'
 import { fetchMarketSnapshot } from './api'
 import FullLogoWhite from './assets/full_logo_white.svg'
@@ -194,6 +195,46 @@ const computeAdjustedValue = (baseline, deltaPct) => {
 const NETWORK_FEE_BASELINE = 0.01
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max)
+
+const YearlyImpChart = ({ data }) => {
+  const hasData = Array.isArray(data) && data.length > 0
+  if (!hasData) {
+    return (
+      <div className="imp-chart-placeholder">
+        <p>Need an active IMP tier plus market prices to display the curve.</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="imp-chart-wrapper" aria-label="Yearly IMP minted versus SSV price">
+      <ResponsiveContainer width="100%" height={260}>
+        <LineChart data={data} margin={{ top: 10, right: 18, left: 0, bottom: 10 }}>
+          <XAxis
+            dataKey="price"
+            tickFormatter={(value) =>
+              typeof value === 'number' ? `$${value.toFixed(0)}` : value
+            }
+          />
+          <YAxis
+            tickFormatter={(value) =>
+              typeof value === 'number' ? `${(value / 1000).toFixed(0)}k` : value
+            }
+          />
+          <Tooltip
+            formatter={(value) =>
+              typeof value === 'number' ? `${value.toLocaleString()} SSV` : value
+            }
+            labelFormatter={(value) =>
+              typeof value === 'number' ? `$${value.toFixed(2)}` : value
+            }
+          />
+          <Line type="monotone" dataKey="minted" stroke="#2563eb" dot={false} />
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
+  )
+}
 
 const resolveStakedSsvBaselinePercent = () => {
   const fallback = 25
@@ -579,6 +620,24 @@ function App() {
       ? formatPercent(ssvAprPercentValue)
       : '—'
 
+  const impTierInfo = useMemo(() => {
+    if (
+      typeof finalStakedEth !== 'number' ||
+      !Number.isFinite(finalStakedEth) ||
+      finalStakedEth <= 0
+    ) {
+      return null
+    }
+    return (
+      IMP_TIER_TABLE.find(
+        (tier) => finalStakedEth >= tier.ethMin && finalStakedEth <= tier.ethMax
+      ) ?? null
+    )
+  }, [finalStakedEth])
+
+  const impTierBoostMultiplier =
+    typeof impTierInfo?.aprBoost === 'number' ? impTierInfo.aprBoost : null
+
   const totalValidators =
     typeof finalStakedEth === 'number' && Number.isFinite(finalStakedEth)
       ? finalStakedEth / 32
@@ -599,11 +658,21 @@ function App() {
       : null
 
   const impYearlyRequirementSsv =
-    totalValidators !== null &&
+    finalStakedEth !== null &&
+    finalStakedEth > 0 &&
     finalEthAprDecimal !== null &&
+    finalEthAprDecimal > 0 &&
     finalEthPrice !== null &&
-    finalSsvPrice !== null
-      ? (totalValidators * finalEthAprDecimal * finalEthPrice) / finalSsvPrice
+    finalEthPrice > 0 &&
+    finalSsvPrice !== null &&
+    finalSsvPrice > 0 &&
+    impTierBoostMultiplier !== null &&
+    impTierBoostMultiplier > 0
+      ? (finalStakedEth *
+          finalEthAprDecimal *
+          finalEthPrice *
+          impTierBoostMultiplier) /
+        finalSsvPrice
       : null
 
   const impYearlySsvState = (() => {
@@ -611,7 +680,7 @@ function App() {
       return { value: null, source: null }
     }
     if (impYearlyRequirementSsv === null) {
-      return { value: impInflationCapSsv, source: 'inflation' }
+      return { value: null, source: null }
     }
     if (impInflationCapSsv === null) {
       return { value: impYearlyRequirementSsv, source: 'market' }
@@ -669,15 +738,20 @@ function App() {
       : '—'
 
   const impBreakEvenSsvPrice =
-    totalValidators !== null &&
-    totalValidators > 0 &&
+    finalStakedEth !== null &&
+    finalStakedEth > 0 &&
     finalEthAprDecimal !== null &&
     finalEthAprDecimal > 0 &&
     finalEthPrice !== null &&
     finalEthPrice > 0 &&
+    impTierBoostMultiplier !== null &&
+    impTierBoostMultiplier > 0 &&
     impInflationCapSsv !== null &&
     impInflationCapSsv > 0
-      ? (totalValidators * finalEthAprDecimal * finalEthPrice) /
+      ? (finalStakedEth *
+          finalEthAprDecimal *
+          finalEthPrice *
+          impTierBoostMultiplier) /
         impInflationCapSsv
       : null
 
@@ -688,21 +762,6 @@ function App() {
           maximumFractionDigits: 2,
         })
       : '—'
-
-  const impTierInfo = useMemo(() => {
-    if (
-      typeof finalStakedEth !== 'number' ||
-      !Number.isFinite(finalStakedEth) ||
-      finalStakedEth <= 0
-    ) {
-      return null
-    }
-    return (
-      IMP_TIER_TABLE.find(
-        (tier) => finalStakedEth >= tier.ethMin && finalStakedEth <= tier.ethMax
-      ) ?? null
-    )
-  }, [finalStakedEth])
 
   const formattedImpTierBoost =
     typeof impTierInfo?.aprBoost === 'number'
@@ -723,6 +782,102 @@ function App() {
     typeof impMaxInflationPercent === 'number'
       ? formatPercent(impMaxInflationPercent)
       : null
+
+  const ssvPriceMinDelta =
+    typeof deltaRanges?.ssvPrice?.min === 'number'
+      ? deltaRanges.ssvPrice.min
+      : -75
+  const ssvPriceMaxDelta =
+    typeof deltaRanges?.ssvPrice?.max === 'number'
+      ? deltaRanges.ssvPrice.max
+      : 300
+
+  const ssvPriceGraphRange = useMemo(() => {
+    const base =
+      typeof ssvPriceBaseline === 'number' &&
+      Number.isFinite(ssvPriceBaseline) &&
+      ssvPriceBaseline > 0
+        ? ssvPriceBaseline
+        : typeof finalSsvPrice === 'number' &&
+          Number.isFinite(finalSsvPrice) &&
+          finalSsvPrice > 0
+        ? finalSsvPrice
+        : null
+
+    if (base === null) {
+      return null
+    }
+
+    const minCandidate = base * (1 + ssvPriceMinDelta / 100)
+    const maxCandidate = base * (1 + ssvPriceMaxDelta / 100)
+    let min = Number.isFinite(minCandidate) ? minCandidate : base * 0.25
+    let max = Number.isFinite(maxCandidate) ? maxCandidate : base * 1.75
+
+    if (min <= 0) {
+      min = base * 0.1
+    }
+    if (max <= min) {
+      max = min * 2
+    }
+
+    return { min, max }
+  }, [ssvPriceBaseline, finalSsvPrice, ssvPriceMinDelta, ssvPriceMaxDelta])
+
+  const impYearlyGraphPoints = useMemo(() => {
+    if (
+      !ssvPriceGraphRange ||
+      finalStakedEth === null ||
+      finalStakedEth <= 0 ||
+      finalEthAprDecimal === null ||
+      finalEthAprDecimal <= 0 ||
+      finalEthPrice === null ||
+      finalEthPrice <= 0 ||
+      impTierBoostMultiplier === null ||
+      impTierBoostMultiplier <= 0
+    ) {
+      return []
+    }
+
+    const baseRequirement =
+      finalStakedEth *
+      finalEthAprDecimal *
+      finalEthPrice *
+      impTierBoostMultiplier
+
+    if (!Number.isFinite(baseRequirement) || baseRequirement <= 0) {
+      return []
+    }
+
+    const steps = 40
+    const points = []
+    for (let step = 0; step <= steps; step += 1) {
+      const t = step / steps
+      const price =
+        ssvPriceGraphRange.min +
+        (ssvPriceGraphRange.max - ssvPriceGraphRange.min) * t
+      if (!Number.isFinite(price) || price <= 0) {
+        continue
+      }
+      const requirement = baseRequirement / price
+      const minted =
+        impInflationCapSsv !== null && Number.isFinite(impInflationCapSsv)
+          ? Math.min(requirement, impInflationCapSsv)
+          : requirement
+      if (!Number.isFinite(minted) || minted < 0) {
+        continue
+      }
+      points.push({ price, minted })
+    }
+
+    return points
+  }, [
+    ssvPriceGraphRange,
+    finalStakedEth,
+    finalEthAprDecimal,
+    finalEthPrice,
+    impTierBoostMultiplier,
+    impInflationCapSsv,
+  ])
 
   const shareOnTwitter = useCallback(() => {
     const aprDisplay = formattedSsvApr !== '—' ? formattedSsvApr : 'ETH yield'
@@ -929,8 +1084,8 @@ function App() {
                   </span>
                   <span className="metric-subtitle">SSV</span>
                   <p className="summary-description">
-                    Lesser of ETH demand ({formattedImpYearlyRequirement}) or the {formattedImpMaxInflation ?? 'configured'}
-                    {' '}inflation cap ({formattedImpInflationCap}).
+                    Boosted ETH need ({formattedImpYearlyRequirement}) versus the{' '}
+                    {formattedImpMaxInflation ?? 'configured'} inflation cap ({formattedImpInflationCap}).
                   </p>
                   <p className="summary-note">
                     {impYearlySsvSource === 'market'
@@ -942,19 +1097,8 @@ function App() {
                   </p>
                 </article>
               </div>
-              <div className="summary-text">
-                <p className="summary-disclaimer summary-disclaimer--headline">
-                  IMP (Incentivized Mainnet Program) uses the same live inputs as the calculator along with a hard cap of{' '}
-                  {formattedImpMaxInflation ?? 'configured'} of the total SSV supply.
-                </p>
-                <p>
-                  <strong>Total validators</strong> tracks how many operators are incentivized today.{' '}
-                  <strong>Yearly IMP</strong> mints the lesser of the ETH-referenced need or the inflation cap to respect the 15% limit.{' '}
-                  <strong>IMP Actual Boost</strong> contextualizes those SSV incentives versus the 32 ETH validator stake and the current ETH APR baseline.
-                </p>
-                <p className="summary-disclaimer">
-                  The DAO still needs to authorize IMP. These projections move together with the sliders below.
-                </p>
+              <div className="summary-text imp-graph-card">
+                <YearlyImpChart data={impYearlyGraphPoints} />
               </div>
             </>
           ) : (
