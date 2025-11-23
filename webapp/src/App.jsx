@@ -204,6 +204,21 @@ const resolveStakedSsvBaselinePercent = () => {
 
 const STAKED_SSV_BASELINE = resolveStakedSsvBaselinePercent()
 
+const resolveImpMaxInflationPercent = () => {
+  const fallback = 15
+  const envValue = readEnvNumber('VITE_IMP_MAX_INFLATION_PERCENT')
+  if (envValue === null) return fallback
+  if (!Number.isFinite(envValue)) return fallback
+  return clamp(envValue, 0, 100)
+}
+
+const IMP_MAX_INFLATION_PERCENT = resolveImpMaxInflationPercent()
+
+const SUMMARY_TABS = Object.freeze([
+  { id: 'calculator', label: 'Calculator' },
+  { id: 'imp', label: 'IMP' },
+])
+
 const formatDeltaLabel = (value) => {
   if (typeof value !== 'number' || !Number.isFinite(value)) return '—'
   const formatted = value.toLocaleString(undefined, {
@@ -282,6 +297,7 @@ function App() {
     isElevated: false,
     showApr: false,
   }))
+  const [activeSummaryTab, setActiveSummaryTab] = useState(SUMMARY_TABS[0].id)
 
   useEffect(() => {
     let isMounted = true
@@ -501,6 +517,105 @@ function App() {
       ? formatPercent(ssvAprPercentValue)
       : '—'
 
+  const totalValidators =
+    typeof finalStakedEth === 'number' && Number.isFinite(finalStakedEth)
+      ? finalStakedEth / 32
+      : null
+
+  const impMaxInflationPercent = IMP_MAX_INFLATION_PERCENT
+
+  const impMaxInflationDecimal =
+    typeof impMaxInflationPercent === 'number'
+      ? impMaxInflationPercent / 100
+      : null
+
+  const impInflationCapSsv =
+    typeof ssvTotalSupply === 'number' &&
+    Number.isFinite(ssvTotalSupply) &&
+    impMaxInflationDecimal !== null
+      ? ssvTotalSupply * impMaxInflationDecimal
+      : null
+
+  const impYearlyRequirementSsv =
+    totalValidators !== null &&
+    finalEthAprDecimal !== null &&
+    finalEthPrice !== null &&
+    finalSsvPrice !== null
+      ? (totalValidators * finalEthAprDecimal * finalEthPrice) / finalSsvPrice
+      : null
+
+  const impYearlySsvState = (() => {
+    if (impYearlyRequirementSsv === null && impInflationCapSsv === null) {
+      return { value: null, source: null }
+    }
+    if (impYearlyRequirementSsv === null) {
+      return { value: impInflationCapSsv, source: 'inflation' }
+    }
+    if (impInflationCapSsv === null) {
+      return { value: impYearlyRequirementSsv, source: 'market' }
+    }
+    if (impYearlyRequirementSsv <= impInflationCapSsv) {
+      return { value: impYearlyRequirementSsv, source: 'market' }
+    }
+    return { value: impInflationCapSsv, source: 'inflation' }
+  })()
+
+  const impYearlySsv = impYearlySsvState.value
+  const impYearlySsvSource = impYearlySsvState.source
+
+  const impActualBoost =
+    impYearlySsv !== null &&
+    totalValidators !== null &&
+    totalValidators > 0 &&
+    finalSsvPrice !== null &&
+    finalSsvPrice > 0 &&
+    finalEthPrice !== null &&
+    finalEthPrice > 0 &&
+    finalEthAprDecimal !== null &&
+    finalEthAprDecimal > 0
+      ? ((impYearlySsv / totalValidators) * finalSsvPrice) /
+        (32 * finalEthPrice * finalEthAprDecimal)
+      : null
+
+  const impActualBoostPercent =
+    typeof impActualBoost === 'number' && Number.isFinite(impActualBoost)
+      ? impActualBoost * 100
+      : null
+
+  const formattedImpActualBoost =
+    impActualBoostPercent !== null
+      ? formatPercent(impActualBoostPercent)
+      : '—'
+
+  const formattedTotalValidators =
+    totalValidators !== null ? formatNumber(Math.round(totalValidators)) : '—'
+
+  const formattedImpYearlySsv =
+    impYearlySsv !== null ? formatTokenAmount(impYearlySsv, 'SSV') : '—'
+
+  const impYearlySsvUsd =
+    impYearlySsv !== null && finalSsvPrice !== null && finalSsvPrice > 0
+      ? impYearlySsv * finalSsvPrice
+      : null
+
+  const formattedImpYearlySsvUsd =
+    impYearlySsvUsd !== null ? formatCurrency(impYearlySsvUsd) : '—'
+
+  const formattedImpYearlyRequirement =
+    impYearlyRequirementSsv !== null
+      ? formatTokenAmount(impYearlyRequirementSsv, 'SSV')
+      : '—'
+
+  const formattedImpInflationCap =
+    impInflationCapSsv !== null
+      ? formatTokenAmount(impInflationCapSsv, 'SSV')
+      : '—'
+
+  const formattedImpMaxInflation =
+    typeof impMaxInflationPercent === 'number'
+      ? formatPercent(impMaxInflationPercent)
+      : null
+
   const shareOnTwitter = useCallback(() => {
     const aprDisplay = formattedSsvApr !== '—' ? formattedSsvApr : 'ETH yield'
     const tweetText = `SSV is redefining ETH yield.\nIf the SSV - ETH Accrual Token 💎 was live today, SSV stakers would be earning 💰${aprDisplay} in real ETH — aligning the entire network around sustainable, ETH-based rewards. ⚖️\n\nSupport this improvement proposal!\n\n🔗 Calculate your ETH accrual potential:\n👉 https://your-deployed-domain.example/ssv-apr-share.html\n\n#SSV #ETH #Restaking #RealYield via @ssv_network`
@@ -597,59 +712,132 @@ function App() {
       </header>
 
       <main className="main">
-      <section className="summary-section">
-        <div className="summary-pull">
-          <article className="metric-card highlight summary-card">
-              <span className="metric-label">Network Fee (Yearly)</span>
-            <span className="metric-value">{formattedOverallFees}</span>
-            <span className="metric-subtitle">USD</span>
-            <p className="summary-description">
-              The yearly fees the entire SSV Network accumulates under the assumptions you configure below.
-            </p>
-            <p className="summary-note">
-              Updates instantly as you adjust the inputs below.
-            </p>
-          </article>
-          <article className="metric-card summary-card">
-            <span className="metric-label">Staked SSV APR</span>
-            <span className="metric-value">{formattedSsvApr}</span>
-            <span className="metric-subtitle">percent</span>
-            <p className="summary-description">
-              The resulting APR, paid in ETH, for staking SSV with those same inputs.
-            </p>
-            <p className="summary-note">
-              Useful for comparing ETH-denominated yields across scenarios.
-            </p>
-            <button type="button" className="share-button" onClick={shareOnTwitter}>
-              Share on X
-            </button>
-          </article>
-        </div>
-        <div className="summary-text">
-          <p className="summary-disclaimer summary-disclaimer--headline">
-            This is a calculator showcasing how SSV can become an ETH accrual token. For this proposal to happen it
-            needs the SSV DAO approval.
-          </p>
-          <p>
-            See how SSV can become the DVT layer that turns network activity into ETH flow. SSV aligns
-            Ethereum’s growth with its stakers — shifting from speculative tokenomics to real ETH accrual.
-            Explore how your SSV can compound ETH yield as the network scales.
-          </p>
-          <div className="summary-actions">
-            <a
-              className="summary-link"
-              href="https://alonmuroch-65570.medium.com/making-ssv-an-eth-accrual-token-d5e839fb24c0"
-              target="_blank"
-              rel="noreferrer"
-            >
-              📖 Making SSV an ETH Accrual Token →
-            </a>
+        <section className="summary-section">
+          <div className="summary-tabs" role="tablist" aria-label="Calculator modes">
+            {SUMMARY_TABS.map((tab) => {
+              const isActive = activeSummaryTab === tab.id
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={isActive}
+                  className={`summary-tab${isActive ? ' summary-tab--active' : ''}`}
+                  onClick={() => setActiveSummaryTab(tab.id)}
+                >
+                  {tab.label}
+                </button>
+              )
+            })}
           </div>
-          <p className="summary-disclaimer">
-            * Numbers are based on the inputs you configure below and should be treated as directional estimates.
-          </p>
-        </div>
-      </section>
+          {activeSummaryTab === 'calculator' ? (
+            <>
+              <div className="summary-pull">
+                <article className="metric-card highlight summary-card">
+                  <span className="metric-label">Network Fee (Yearly)</span>
+                  <span className="metric-value">{formattedOverallFees}</span>
+                  <span className="metric-subtitle">USD</span>
+                  <p className="summary-description">
+                    The yearly fees the entire SSV Network accumulates under the assumptions you configure below.
+                  </p>
+                  <p className="summary-note">
+                    Updates instantly as you adjust the inputs below.
+                  </p>
+                </article>
+                <article className="metric-card summary-card">
+                  <span className="metric-label">Staked SSV APR</span>
+                  <span className="metric-value">{formattedSsvApr}</span>
+                  <span className="metric-subtitle">percent</span>
+                  <p className="summary-description">
+                    The resulting APR, paid in ETH, for staking SSV with those same inputs.
+                  </p>
+                  <p className="summary-note">
+                    Useful for comparing ETH-denominated yields across scenarios.
+                  </p>
+                  <button type="button" className="share-button" onClick={shareOnTwitter}>
+                    Share on X
+                  </button>
+                </article>
+              </div>
+              <div className="summary-text">
+                <p className="summary-disclaimer summary-disclaimer--headline">
+                  This is a calculator showcasing how SSV can become an ETH accrual token. For this proposal to happen it
+                  needs the SSV DAO approval.
+                </p>
+                <p>
+                  See how SSV can become the DVT layer that turns network activity into ETH flow. SSV aligns
+                  Ethereum’s growth with its stakers — shifting from speculative tokenomics to real ETH accrual.
+                  Explore how your SSV can compound ETH yield as the network scales.
+                </p>
+                <div className="summary-actions">
+                  <a
+                    className="summary-link"
+                    href="https://alonmuroch-65570.medium.com/making-ssv-an-eth-accrual-token-d5e839fb24c0"
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    📖 Making SSV an ETH Accrual Token →
+                  </a>
+                </div>
+                <p className="summary-disclaimer">
+                  * Numbers are based on the inputs you configure below and should be treated as directional estimates.
+                </p>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="summary-pull">
+                <article className="metric-card highlight summary-card">
+                  <span className="metric-label">Total Validators</span>
+                  <span className="metric-value">{formattedTotalValidators}</span>
+                  <span className="metric-subtitle">validators</span>
+                  <p className="summary-description">
+                    Derived from your staked ETH assumption (32 ETH per validator).
+                  </p>
+                </article>
+                <article className="metric-card summary-card">
+                  <span className="metric-label">Yearly IMP</span>
+                  <span className="metric-value">{formattedImpYearlySsv}</span>
+                  <span className="metric-subvalue">≈ {formattedImpYearlySsvUsd}</span>
+                  <span className="metric-subtitle">SSV</span>
+                  <p className="summary-description">
+                    Lesser of ETH demand ({formattedImpYearlyRequirement}) or the {formattedImpMaxInflation ?? 'configured'}
+                    {' '}inflation cap ({formattedImpInflationCap}).
+                  </p>
+                  <p className="summary-note">
+                    {impYearlySsvSource === 'market'
+                      ? 'ETH-linked need fits beneath the inflation ceiling.'
+                      : impYearlySsvSource === 'inflation'
+                      ? 'Inflation cap currently limits yearly IMP.'
+                      : 'Awaiting live market data.'}
+                  </p>
+                </article>
+                <article className="metric-card summary-card">
+                  <span className="metric-label">IMP Actual Boost</span>
+                  <span className="metric-value">{formattedImpActualBoost}</span>
+                  <span className="metric-subtitle">per validator</span>
+                  <p className="summary-description">
+                    Shows the ETH-denominated boost per validator once yearly IMP is converted back to ETH value and normalized by the ETH APR.
+                  </p>
+                </article>
+              </div>
+              <div className="summary-text">
+                <p className="summary-disclaimer summary-disclaimer--headline">
+                  IMP (Incentivized Mainnet Program) uses the same live inputs as the calculator along with a hard cap of{' '}
+                  {formattedImpMaxInflation ?? 'configured'} of the total SSV supply.
+                </p>
+                <p>
+                  <strong>Total validators</strong> tracks how many operators are incentivized today.{' '}
+                  <strong>Yearly IMP</strong> mints the lesser of the ETH-referenced need or the inflation cap to respect the 15% limit.{' '}
+                  <strong>IMP Actual Boost</strong> contextualizes those SSV incentives versus the 32 ETH validator stake and the current ETH APR baseline.
+                </p>
+                <p className="summary-disclaimer">
+                  The DAO still needs to authorize IMP. These projections move together with the sliders below.
+                </p>
+              </div>
+            </>
+          )}
+        </section>
 
         <section className="controls-section">
           <div className="section-header">
