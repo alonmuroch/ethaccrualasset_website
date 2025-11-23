@@ -47,3 +47,7 @@ Use the **IMP** tab to model the SSV Incentivized Mainnet Program with the same 
 - IMP Actual Boost = `((Yearly IMP ÷ Validators) × SSV price) ÷ (32 × ETH price × ETH APR)`
 
 `VITE_IMP_MAX_INFLATION_PERCENT` (default `15`) controls the max inflation cap applied to the total SSV supply.
+
+## IMP Tier tab
+
+Use the **IMP Tier** tab to see which incentive bracket applies to the current staked ETH input. The highlight card shows the active APR boost, while the table lists every validator/effective-balance range along with its boost percentage. Rows update automatically as you adjust the staked ETH slider.

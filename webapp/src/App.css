@@ -329,6 +329,31 @@
   margin-top: 0.2rem;
 }
 
+.tier-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1rem 0 0;
+  font-size: 0.9rem;
+}
+
+.tier-table th,
+.tier-table td {
+  padding: 0.65rem 0.75rem;
+  border-bottom: 1px solid #e2e8f0;
+  text-align: left;
+}
+
+.tier-table th {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #64748b;
+}
+
+.tier-row-active {
+  background: rgba(37, 99, 235, 0.08);
+}
+
 .share-button {
   align-self: flex-start;
   margin-top: 1rem;

@@ -21,11 +21,12 @@ const resolveClientRefreshInterval = () => {
 
 const MARKET_REFRESH_INTERVAL_MS = resolveClientRefreshInterval()
 
-const formatCurrency = (value) =>
+const formatCurrency = (value, { minimumFractionDigits = 0, maximumFractionDigits = 0 } = {}) =>
   new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',
-    maximumFractionDigits: 0,
+    minimumFractionDigits,
+    maximumFractionDigits,
   }).format(value)
 
 const formatNumber = (value) =>
@@ -217,6 +218,66 @@ const IMP_MAX_INFLATION_PERCENT = resolveImpMaxInflationPercent()
 const SUMMARY_TABS = Object.freeze([
   { id: 'calculator', label: 'Calculator' },
   { id: 'imp', label: 'IMP' },
+  { id: 'impTier', label: 'IMP Tier' },
+])
+
+const IMP_TIER_TABLE = Object.freeze([
+  {
+    id: 'tier1',
+    validatorsMin: 100_001,
+    validatorsMax: 125_000,
+    ethMin: 3_200_032,
+    ethMax: 4_000_000,
+    aprBoost: 0.075,
+  },
+  {
+    id: 'tier2',
+    validatorsMin: 125_001,
+    validatorsMax: 150_000,
+    ethMin: 4_000_032,
+    ethMax: 4_800_000,
+    aprBoost: 0.06,
+  },
+  {
+    id: 'tier3',
+    validatorsMin: 150_001,
+    validatorsMax: 175_000,
+    ethMin: 4_800_032,
+    ethMax: 5_600_000,
+    aprBoost: 0.05,
+  },
+  {
+    id: 'tier4',
+    validatorsMin: 175_001,
+    validatorsMax: 200_000,
+    ethMin: 5_600_032,
+    ethMax: 6_400_000,
+    aprBoost: 0.0425,
+  },
+  {
+    id: 'tier5',
+    validatorsMin: 200_001,
+    validatorsMax: 225_000,
+    ethMin: 6_400_032,
+    ethMax: 7_200_000,
+    aprBoost: 0.035,
+  },
+  {
+    id: 'tier6',
+    validatorsMin: 225_001,
+    validatorsMax: 250_000,
+    ethMin: 7_200_032,
+    ethMax: 8_000_000,
+    aprBoost: 0.03,
+  },
+  {
+    id: 'tier7',
+    validatorsMin: 250_001,
+    validatorsMax: 300_000,
+    ethMin: 8_000_032,
+    ethMax: 9_600_000,
+    aprBoost: 0.025,
+  },
 ])
 
 const formatDeltaLabel = (value) => {
@@ -252,6 +313,7 @@ const formatTokenAmount = (value, symbol) => {
   }
 
   return `${new Intl.NumberFormat('en-US', {
+    minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(value)} ${symbol}`
 }
@@ -599,7 +661,53 @@ function App() {
       : null
 
   const formattedImpYearlySsvUsd =
-    impYearlySsvUsd !== null ? formatCurrency(impYearlySsvUsd) : '—'
+    impYearlySsvUsd !== null
+      ? formatCurrency(impYearlySsvUsd, {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })
+      : '—'
+
+  const impBreakEvenSsvPrice =
+    totalValidators !== null &&
+    totalValidators > 0 &&
+    finalEthAprDecimal !== null &&
+    finalEthAprDecimal > 0 &&
+    finalEthPrice !== null &&
+    finalEthPrice > 0 &&
+    impInflationCapSsv !== null &&
+    impInflationCapSsv > 0
+      ? (totalValidators * finalEthAprDecimal * finalEthPrice) /
+        impInflationCapSsv
+      : null
+
+  const formattedImpBreakEvenSsvPrice =
+    impBreakEvenSsvPrice !== null
+      ? formatCurrency(impBreakEvenSsvPrice, {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })
+      : '—'
+
+  const impTierInfo = useMemo(() => {
+    if (
+      typeof finalStakedEth !== 'number' ||
+      !Number.isFinite(finalStakedEth) ||
+      finalStakedEth <= 0
+    ) {
+      return null
+    }
+    return (
+      IMP_TIER_TABLE.find(
+        (tier) => finalStakedEth >= tier.ethMin && finalStakedEth <= tier.ethMax
+      ) ?? null
+    )
+  }, [finalStakedEth])
+
+  const formattedImpTierBoost =
+    typeof impTierInfo?.aprBoost === 'number'
+      ? formatPercent(impTierInfo.aprBoost * 100)
+      : '—'
 
   const formattedImpYearlyRequirement =
     impYearlyRequirementSsv !== null
@@ -784,7 +892,7 @@ function App() {
                 </p>
               </div>
             </>
-          ) : (
+          ) : activeSummaryTab === 'imp' ? (
             <>
               <div className="summary-pull">
                 <article className="metric-card highlight summary-card">
@@ -799,6 +907,9 @@ function App() {
                   <span className="metric-label">Yearly IMP</span>
                   <span className="metric-value">{formattedImpYearlySsv}</span>
                   <span className="metric-subvalue">≈ {formattedImpYearlySsvUsd}</span>
+                  <span className="metric-subvalue">
+                    Break-even SSV price: {formattedImpBreakEvenSsvPrice}
+                  </span>
                   <span className="metric-subtitle">SSV</span>
                   <p className="summary-description">
                     Lesser of ETH demand ({formattedImpYearlyRequirement}) or the {formattedImpMaxInflation ?? 'configured'}
@@ -810,6 +921,7 @@ function App() {
                       : impYearlySsvSource === 'inflation'
                       ? 'Inflation cap currently limits yearly IMP.'
                       : 'Awaiting live market data.'}
+                    {' '}Higher SSV prices than the break-even push the effective IMP below the cap.
                   </p>
                 </article>
                 <article className="metric-card summary-card">
@@ -833,6 +945,75 @@ function App() {
                 </p>
                 <p className="summary-disclaimer">
                   The DAO still needs to authorize IMP. These projections move together with the sliders below.
+                </p>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="summary-pull">
+                <article className="metric-card highlight summary-card">
+                  <span className="metric-label">Current IMP Tier Boost</span>
+                  <span className="metric-value">{formattedImpTierBoost}</span>
+                  <span className="metric-subtitle">percent</span>
+                  <p className="summary-description">
+                    {impTierInfo
+                      ? `Applies across ${formatNumber(
+                          impTierInfo.validatorsMin
+                        )}–${formatNumber(
+                          impTierInfo.validatorsMax
+                        )} validators (${formatEthAmount(
+                          impTierInfo.ethMin
+                        )} – ${formatEthAmount(impTierInfo.ethMax)} staked ETH).`
+                      : 'Adjust the staked ETH input to see which IMP tier applies.'}
+                  </p>
+                </article>
+                <article className="metric-card summary-card">
+                  <span className="metric-label">Staked ETH Snapshot</span>
+                  <span className="metric-value">
+                    {finalStakedEth !== null ? formatEthAmount(finalStakedEth) : '—'}
+                  </span>
+                  <span className="metric-subtitle">effective balance</span>
+                  <p className="summary-description">
+                    {finalStakedEth !== null
+                      ? `Equivalent to approximately ${formattedTotalValidators} validators.`
+                      : 'Live staked ETH data not available yet.'}
+                  </p>
+                  <p className="summary-note">
+                    Tier boosts refresh automatically as you tweak the staked ETH slider.
+                  </p>
+                </article>
+              </div>
+              <div className="summary-text">
+                <p className="summary-disclaimer summary-disclaimer--headline">
+                  IMP tiers scale the APR boost as more validators participate. Track how close you are to the next bracket below.
+                </p>
+                <table className="tier-table">
+                  <thead>
+                    <tr>
+                      <th>Validators</th>
+                      <th>Effective Balance (ETH)</th>
+                      <th>APR Boost</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {IMP_TIER_TABLE.map((tier) => {
+                      const isActive = impTierInfo?.id === tier.id
+                      return (
+                        <tr key={tier.id} className={isActive ? 'tier-row-active' : undefined}>
+                          <td>{`${formatNumber(tier.validatorsMin)} – ${formatNumber(
+                            tier.validatorsMax
+                          )}`}</td>
+                          <td>{`${formatEthAmount(tier.ethMin)} – ${formatEthAmount(
+                            tier.ethMax
+                          )}`}</td>
+                          <td>{formatPercent(tier.aprBoost * 100)}</td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+                <p className="summary-disclaimer">
+                  Active tier highlighted. Ranges outside the table are considered out-of-scope for this IMP program preview.
                 </p>
               </div>
             </>
