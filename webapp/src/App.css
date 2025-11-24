@@ -533,6 +533,50 @@
   box-shadow: none;
 }
 
+.fee-floor-control {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(148, 163, 184, 0.4);
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.fee-floor-control-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.9rem;
+  color: #475569;
+  font-weight: 500;
+}
+
+.fee-floor-reset {
+  border: none;
+  background: transparent;
+  color: #2563eb;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+}
+
+.fee-floor-reset:disabled {
+  color: #cbd5f5;
+  cursor: not-allowed;
+}
+
+.fee-floor-control input[type='range'] {
+  width: 100%;
+  accent-color: #2563eb;
+}
+
+.fee-floor-control-range {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.85rem;
+  color: #94a3b8;
+}
+
 .imp-chart-wrapper {
   width: 100%;
   min-height: 260px;
@@ -667,8 +711,6 @@
 
   .metric-value {
     font-size: clamp(1.7rem, 1.2rem + 3vw, 2.2rem);
-    word-break: break-word;
-    text-wrap: balance;
   }
 
   .share-button {
@@ -740,6 +782,7 @@
 .metric-value {
   font-size: clamp(1.9rem, 1rem + 2.5vw, 2.6rem);
   font-weight: 700;
+  line-height: 1.1;
   word-break: break-word;
   text-wrap: balance;
 }

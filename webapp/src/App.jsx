@@ -193,6 +193,7 @@ const computeAdjustedValue = (baseline, deltaPct) => {
 }
 
 const NETWORK_FEE_BASELINE = 0.01
+const MIN_SSV_PRICE_FLOOR_DEFAULT = 7
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max)
 
@@ -297,6 +298,55 @@ const YearlyImpChart = ({ data }) => {
   )
 }
 
+const NetworkFeeChart = ({ data }) => {
+  const hasData = Array.isArray(data) && data.length > 0
+  if (!hasData) {
+    return (
+      <div className="imp-chart-placeholder">
+        <p>Need market inputs to render the fee curve.</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="imp-chart-wrapper" aria-label="Network fee percentage versus SSV price">
+      <div className="imp-chart-title">
+        <span>Network Fee % vs. SSV Price</span>
+      </div>
+      <ResponsiveContainer width="100%" height={260}>
+        <LineChart data={data} margin={{ top: 10, right: 24, left: 0, bottom: 10 }}>
+          <XAxis
+            dataKey="price"
+            tickFormatter={(value) =>
+              typeof value === 'number' ? `$${value.toFixed(0)}` : value
+            }
+          />
+          <YAxis
+            tickFormatter={(value) =>
+              typeof value === 'number' ? `${value.toFixed(2)}%` : value
+            }
+          />
+          <Tooltip
+            formatter={(value) =>
+              typeof value === 'number' ? `${value.toFixed(2)}%` : value
+            }
+            labelFormatter={(value) =>
+              typeof value === 'number' ? `$${value.toFixed(2)}` : value
+            }
+          />
+          <Line
+            type="monotone"
+            dataKey="feePercent"
+            name="Network fee (%)"
+            stroke="#22c55e"
+            dot={false}
+          />
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
+  )
+}
+
 const resolveStakedSsvBaselinePercent = () => {
   const fallback = 25
   const envValue = readEnvNumber('VITE_STAKED_SSV_BASELINE_PERCENT')
@@ -319,6 +369,7 @@ const IMP_MAX_INFLATION_PERCENT = resolveImpMaxInflationPercent()
 
 const SUMMARY_TABS = Object.freeze([
   { id: 'calculator', label: 'Calculator' },
+  { id: 'fee', label: 'Fee V2' },
   { id: 'imp', label: 'IMP' },
   { id: 'impTier', label: 'IMP Tier' },
 ])
@@ -456,7 +507,11 @@ function App() {
     )
   )
   const [networkFeeDeltaPct, setNetworkFeeDeltaPct] = useState(0)
+  const [minSsvPriceFloor, setMinSsvPriceFloor] = useState(
+    MIN_SSV_PRICE_FLOOR_DEFAULT
+  )
   const [stakedSsvPercent, setStakedSsvPercent] = useState(STAKED_SSV_BASELINE)
+  const [liveNetworkFeeDecimal, setLiveNetworkFeeDecimal] = useState(null)
   const [headerUiState, setHeaderUiState] = useState(() => ({
     isElevated: false,
     showApr: false,
@@ -597,9 +652,16 @@ function App() {
     [stakedEthBaseline, stakedEthDeltaPct]
   )
 
+  const baselineNetworkFeeDecimal =
+    typeof liveNetworkFeeDecimal === 'number' && Number.isFinite(liveNetworkFeeDecimal)
+      ? liveNetworkFeeDecimal
+      : NETWORK_FEE_BASELINE
+
+  const formattedBaselineNetworkFeePercent = formatPercent(baselineNetworkFeeDecimal * 100)
+
   const networkFeeAdjusted = useMemo(
-    () => computeAdjustedValue(NETWORK_FEE_BASELINE, networkFeeDeltaPct),
-    [networkFeeDeltaPct]
+    () => computeAdjustedValue(baselineNetworkFeeDecimal, networkFeeDeltaPct),
+    [baselineNetworkFeeDecimal, networkFeeDeltaPct]
   )
 
   const networkFeeAdjustedPercent =
@@ -642,6 +704,16 @@ function App() {
       ? networkFeeAdjusted
       : null
 
+  const perValidatorEthYieldUsd =
+    finalEthPrice !== null && finalEthAprDecimal !== null
+      ? 32 * finalEthPrice * finalEthAprDecimal
+      : null
+
+  const netFeeUsdPerValidator =
+    perValidatorEthYieldUsd !== null && finalNetworkFeeDecimal !== null
+      ? perValidatorEthYieldUsd * finalNetworkFeeDecimal
+      : null
+
   const overallFeesUsd =
     finalStakedEth !== null &&
     finalEthPrice !== null &&
@@ -663,6 +735,73 @@ function App() {
     (typeof ssvTotalSupply === 'number' && Number.isFinite(ssvTotalSupply)
       ? (ssvTotalSupply * STAKED_SSV_BASELINE) / 100
       : null)
+
+  const sanitizedMinSsvPriceFloor =
+    typeof minSsvPriceFloor === 'number' && Number.isFinite(minSsvPriceFloor)
+      ? Math.max(minSsvPriceFloor, 0.01)
+      : MIN_SSV_PRICE_FLOOR_DEFAULT
+
+  const feeFloorSliderValue =
+    typeof minSsvPriceFloor === 'number' && Number.isFinite(minSsvPriceFloor)
+      ? minSsvPriceFloor
+      : MIN_SSV_PRICE_FLOOR_DEFAULT
+
+  const canResetMinSsvFloor =
+    feeFloorSliderValue !== MIN_SSV_PRICE_FLOOR_DEFAULT
+
+  const effectiveFeePriceDenominator =
+    finalSsvPrice !== null && finalSsvPrice > 0
+      ? Math.max(finalSsvPrice, sanitizedMinSsvPriceFloor)
+      : sanitizedMinSsvPriceFloor
+
+  const networkFeePerValidatorSsv =
+    netFeeUsdPerValidator !== null &&
+    effectiveFeePriceDenominator !== null &&
+    effectiveFeePriceDenominator > 0
+      ? netFeeUsdPerValidator / effectiveFeePriceDenominator
+      : null
+
+  const networkFeePercentPerYear =
+    networkFeePerValidatorSsv !== null &&
+    finalSsvPrice !== null &&
+    finalSsvPrice > 0 &&
+    perValidatorEthYieldUsd !== null &&
+    perValidatorEthYieldUsd > 0
+      ? (networkFeePerValidatorSsv * finalSsvPrice) / perValidatorEthYieldUsd
+      : null
+
+  const networkFeePercentPerYearValue =
+    networkFeePercentPerYear !== null ? networkFeePercentPerYear * 100 : null
+
+  const networkFeePerValidatorUsd =
+    networkFeePerValidatorSsv !== null &&
+    finalSsvPrice !== null &&
+    finalSsvPrice > 0
+      ? networkFeePerValidatorSsv * finalSsvPrice
+      : null
+
+  const formattedNetworkFeePerValidatorSsv =
+    networkFeePerValidatorSsv !== null
+      ? formatTokenAmount(networkFeePerValidatorSsv, 'SSV')
+      : '—'
+
+  const formattedNetworkFeePerValidatorUsd =
+    networkFeePerValidatorUsd !== null
+      ? formatCurrency(networkFeePerValidatorUsd, {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })
+      : '—'
+
+  const formattedNetworkFeePercentPerYear =
+    networkFeePercentPerYearValue !== null
+      ? formatPercent(networkFeePercentPerYearValue)
+      : '—'
+
+  const formattedMinSsvPriceFloor = formatCurrency(sanitizedMinSsvPriceFloor, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })
 
   const ssvApr =
     overallFeesUsd !== null &&
@@ -951,6 +1090,59 @@ function App() {
     totalValidators,
   ])
 
+  const networkFeePercentGraphPoints = useMemo(() => {
+    if (
+      !ssvPriceGraphRange ||
+      netFeeUsdPerValidator === null ||
+      perValidatorEthYieldUsd === null ||
+      perValidatorEthYieldUsd <= 0 ||
+      !Number.isFinite(sanitizedMinSsvPriceFloor) ||
+      sanitizedMinSsvPriceFloor <= 0
+    ) {
+      return []
+    }
+
+    const minPrice = Number.isFinite(ssvPriceGraphRange.min)
+      ? Math.max(0.5, ssvPriceGraphRange.min)
+      : 0.5
+    const maxPrice = Number.isFinite(ssvPriceGraphRange.max)
+      ? Math.max(minPrice + 1, ssvPriceGraphRange.max)
+      : minPrice + 1
+
+    const steps = 50
+    const points = []
+    for (let step = 0; step <= steps; step += 1) {
+      const t = step / steps
+      const price = minPrice + (maxPrice - minPrice) * t
+      if (!Number.isFinite(price) || price <= 0) {
+        continue
+      }
+      const divisor = Math.max(price, sanitizedMinSsvPriceFloor)
+      if (!Number.isFinite(divisor) || divisor <= 0) {
+        continue
+      }
+      const feeSsv = netFeeUsdPerValidator / divisor
+      if (!Number.isFinite(feeSsv)) {
+        continue
+      }
+      const percentDecimal = (feeSsv * price) / perValidatorEthYieldUsd
+      if (!Number.isFinite(percentDecimal)) {
+        continue
+      }
+      points.push({
+        price,
+        feePercent: percentDecimal * 100,
+      })
+    }
+
+    return points
+  }, [
+    ssvPriceGraphRange,
+    netFeeUsdPerValidator,
+    perValidatorEthYieldUsd,
+    sanitizedMinSsvPriceFloor,
+  ])
+
   const shareOnTwitter = useCallback(() => {
     const aprDisplay = formattedSsvApr !== '—' ? formattedSsvApr : 'ETH yield'
     const tweetText = `SSV is redefining ETH yield.\nIf the SSV - ETH Accrual Token 💎 was live today, SSV stakers would be earning 💰${aprDisplay} in real ETH — aligning the entire network around sustainable, ETH-based rewards. ⚖️\n\nSupport this improvement proposal!\n\n🔗 Calculate your ETH accrual potential:\n👉 https://your-deployed-domain.example/ssv-apr-share.html\n\n#SSV #ETH #Restaking #RealYield via @ssv_network`
@@ -1002,6 +1194,15 @@ function App() {
     return () => {
       window.removeEventListener('scroll', handleScroll)
     }
+  }, [])
+
+  const handleMinSsvFloorReset = useCallback(() => {
+    setMinSsvPriceFloor(MIN_SSV_PRICE_FLOOR_DEFAULT)
+  }, [])
+
+  const handleMinSsvFloorChange = useCallback((event) => {
+    const nextValue = Number(event.target.value)
+    setMinSsvPriceFloor(nextValue)
   }, [])
 
   const aprAvailable = formattedSsvApr !== '—'
@@ -1124,6 +1325,90 @@ function App() {
                 <p className="summary-disclaimer">
                   * Numbers are based on the inputs you configure below and should be treated as directional estimates.
                 </p>
+              </div>
+            </>
+          ) : activeSummaryTab === 'fee' ? (
+            <>
+              <div className="summary-pull">
+                <article className="metric-card summary-card">
+                  <span className="metric-label">Current SSV Network Fee</span>
+                  <span className="metric-value">{formattedBaselineNetworkFeePercent}</span>
+                  <span className="metric-subtitle">protocol setting</span>
+                  <p className="summary-description">
+                    Pulled from the market snapshot when available. Defaults to the proposal&apos;s 1% assumption.
+                  </p>
+                  <p className="summary-note">
+                    Useful for tracking DAO-approved changes independently of scenario tweaking.
+                  </p>
+                </article>
+                <article className="metric-card highlight summary-card">
+                  <span className="metric-label">Network Fee (per validator)</span>
+                  <span className="metric-value">{formattedNetworkFeePerValidatorSsv}</span>
+                  <span className="metric-subvalue">
+                    {networkFeePerValidatorUsd !== null
+                      ? `≈ ${formattedNetworkFeePerValidatorUsd}`
+                      : '—'}
+                  </span>
+                  <span className="metric-subtitle">SSV / year</span>
+                  <p className="summary-description">
+                    Targets {formattedBaselineNetworkFeePercent} of a validator's ETH yield using your current APR and price inputs.
+                  </p>
+                  <p className="summary-note">
+                    Divides by the higher of spot SSV or the configured floor to decide how many SSV tokens to charge.
+                  </p>
+                </article>
+                <article className="metric-card summary-card">
+                  <span className="metric-label">Network Fee (%)</span>
+                  <span className="metric-value">{formattedNetworkFeePercentPerYear}</span>
+                  <span className="metric-subtitle">per year</span>
+                  <p className="summary-description">
+                    Effective fee share at the current SSV price. Falls below target when spot trades under the floor.
+                  </p>
+                  <p className="summary-note">
+                    Update the network fee slider to model higher or lower take rates.
+                  </p>
+                </article>
+                <article className="metric-card summary-card">
+                  <span className="metric-label">Min SSV Price Floor</span>
+                  <span className="metric-value">{formattedMinSsvPriceFloor}</span>
+                  <span className="metric-subtitle">USD</span>
+                  <p className="summary-description">
+                    Below this price the fee-in-SSV amount stops growing, keeping USD-denominated fees predictable.
+                  </p>
+                  <p className="summary-note">
+                    Use the slider to stress-test different floors.
+                  </p>
+                  <div className="fee-floor-control">
+                    <div className="fee-floor-control-header">
+                      <span>Adjust floor</span>
+                      <button
+                        type="button"
+                        className="fee-floor-reset"
+                        onClick={handleMinSsvFloorReset}
+                        disabled={!canResetMinSsvFloor}
+                      >
+                        Reset
+                      </button>
+                    </div>
+                    <input
+                      type="range"
+                      min={1}
+                      max={30}
+                      step={0.5}
+                      value={feeFloorSliderValue}
+                      onChange={handleMinSsvFloorChange}
+                      aria-label="Min SSV Price Floor"
+                    />
+                    <div className="fee-floor-control-range">
+                      <span>$1</span>
+                      <span>{formattedMinSsvPriceFloor}</span>
+                      <span>$30</span>
+                    </div>
+                  </div>
+                </article>
+              </div>
+              <div className="summary-text imp-graph-card">
+                <NetworkFeeChart data={networkFeePercentGraphPoints} />
               </div>
             </>
           ) : activeSummaryTab === 'imp' ? (
@@ -1394,9 +1679,7 @@ function App() {
               }
               minLabel="-50%"
               maxLabel="+150%"
-              hint={`Baseline ${formatPercent(
-                NETWORK_FEE_BASELINE * 100
-              )} · adjust from -50% to +150%`}
+              hint={`Baseline ${formattedBaselineNetworkFeePercent} · adjust from -50% to +150%`}
               onReset={() => setNetworkFeeDeltaPct(0)}
               canReset={networkFeeDeltaPct !== 0}
             />
@@ -1468,3 +1751,18 @@ function App() {
 }
 
 export default App
+        const rawNetworkFeePercent =
+          typeof data?.data?.networkFeePercent === 'number'
+            ? data.data.networkFeePercent
+            : typeof data?.config?.networkFeePercent === 'number'
+            ? data.config.networkFeePercent
+            : null
+        if (typeof rawNetworkFeePercent === 'number' && Number.isFinite(rawNetworkFeePercent)) {
+          const normalized =
+            rawNetworkFeePercent > 1
+              ? rawNetworkFeePercent / 100
+              : rawNetworkFeePercent
+          if (normalized > 0 && normalized < 1) {
+            setLiveNetworkFeeDecimal(normalized)
+          }
+        }
