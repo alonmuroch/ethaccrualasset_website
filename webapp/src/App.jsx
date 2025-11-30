@@ -45,6 +45,7 @@ const DEFAULT_SLIDER_DELTA_RANGES = Object.freeze({
   ethPrice: { min: -100, max: 200 },
   ssvPrice: { min: -100, max: 2000 },
   stakedEth: { min: -100, max: 200 },
+  networkFee: { min: -100, max: 500 },
 })
 
 const readEnvNumber = (key) => {
@@ -104,12 +105,18 @@ const INITIAL_SLIDER_DELTA_RANGES = {
     'VITE_STAKED_ETH_DELTA_MIN',
     'VITE_STAKED_ETH_DELTA_MAX'
   ),
+  networkFee: resolveInitialRange(
+    DEFAULT_SLIDER_DELTA_RANGES.networkFee,
+    'VITE_NETWORK_FEE_DELTA_MIN',
+    'VITE_NETWORK_FEE_DELTA_MAX'
+  ),
 }
 
 const cloneRangeSet = (ranges) => ({
   ethPrice: { ...ranges.ethPrice },
   ssvPrice: { ...ranges.ssvPrice },
   stakedEth: { ...ranges.stakedEth },
+  networkFee: { ...ranges.networkFee },
 })
 
 const SliderControl = ({
@@ -392,9 +399,9 @@ const SUMMARY_TABS = Object.freeze([
 const IMP_TIER_TABLE = Object.freeze([
   {
     id: 'tier1',
-    validatorsMin: 100_001,
+    validatorsMin: 1,
     validatorsMax: 125_000,
-    ethMin: 3_200_032,
+    ethMin: 32,
     ethMax: 4_000_000,
     aprBoost: 0.075,
   },
@@ -521,7 +528,13 @@ function App() {
       INITIAL_SLIDER_DELTA_RANGES.stakedEth.max
     )
   )
-  const [networkFeeDeltaPct, setNetworkFeeDeltaPct] = useState(0)
+  const [networkFeeDeltaPct, setNetworkFeeDeltaPct] = useState(() =>
+    clamp(
+      0,
+      INITIAL_SLIDER_DELTA_RANGES.networkFee.min,
+      INITIAL_SLIDER_DELTA_RANGES.networkFee.max
+    )
+  )
   const [minSsvPriceFloor, setMinSsvPriceFloor] = useState(
     MIN_SSV_PRICE_FLOOR_DEFAULT
   )
@@ -568,6 +581,10 @@ function App() {
               deltaConfig.stakedEth,
               INITIAL_SLIDER_DELTA_RANGES.stakedEth
             ),
+            networkFee: normalizeRange(
+              deltaConfig.networkFee,
+              INITIAL_SLIDER_DELTA_RANGES.networkFee
+            ),
           }
 
           setDeltaRanges(nextRanges)
@@ -579,6 +596,9 @@ function App() {
           )
           setStakedEthDeltaPct((previous) =>
             clamp(previous, nextRanges.stakedEth.min, nextRanges.stakedEth.max)
+          )
+          setNetworkFeeDeltaPct((previous) =>
+            clamp(previous, nextRanges.networkFee.min, nextRanges.networkFee.max)
           )
         }
 
@@ -862,11 +882,15 @@ function App() {
     ) {
       return null
     }
-    return (
-      IMP_TIER_TABLE.find(
-        (tier) => finalStakedEth >= tier.ethMin && finalStakedEth <= tier.ethMax
-      ) ?? null
+
+    const matchedTier = IMP_TIER_TABLE.find(
+      (tier) => finalStakedEth >= tier.ethMin && finalStakedEth <= tier.ethMax
     )
+    if (matchedTier) {
+      return matchedTier
+    }
+
+    return null
   }, [finalStakedEth])
 
   const impTierBoostMultiplier =
@@ -1469,8 +1493,8 @@ function App() {
               <div className="summary-pull imp-layout" aria-live="polite">
                 <div className="metric-stack">
                   <article className="metric-card highlight summary-card">
-                    <span className="metric-label">Total Validators</span>
-                    <span className="metric-value">{formattedTotalValidators}</span>
+                  <span className="metric-label">Total Validators</span>
+                  <span className="metric-value">{formattedTotalValidators}</span>
                     <span className="metric-subtitle">validators</span>
                     <p className="summary-description">
                       Derived from your staked ETH assumption (32 ETH per validator).
@@ -1717,8 +1741,8 @@ function App() {
               label="Network Fee"
               value={networkFeeDeltaPct}
               onChange={setNetworkFeeDeltaPct}
-              min={-50}
-              max={150}
+              min={deltaRanges.networkFee.min}
+              max={deltaRanges.networkFee.max}
               step={1}
               formatter={(value) => `${value.toFixed(0)}%`}
               valueLabel={
@@ -1730,9 +1754,11 @@ function App() {
                     ) ?? formatPercent(networkFeeAdjustedPercent)
                   : '—'
               }
-              minLabel="-50%"
-              maxLabel="+150%"
-              hint={`Baseline ${formattedBaselineNetworkFeePercent} · adjust from -50% to +150%`}
+              minLabel={formatDeltaLabel(deltaRanges.networkFee.min)}
+              maxLabel={formatDeltaLabel(deltaRanges.networkFee.max)}
+              hint={`Baseline ${formattedBaselineNetworkFeePercent} · adjust from ${formatDeltaLabel(
+                deltaRanges.networkFee.min
+              )} to ${formatDeltaLabel(deltaRanges.networkFee.max)}`}
               onReset={() => setNetworkFeeDeltaPct(0)}
               canReset={networkFeeDeltaPct !== 0}
             />
