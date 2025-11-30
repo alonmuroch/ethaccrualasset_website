@@ -35,6 +35,9 @@ const formatNumber = (value) =>
     maximumFractionDigits: 0,
   }).format(value)
 
+const formatCurrencyWithCents = (value) =>
+  formatCurrency(value, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+
 const formatPercent = (value) =>
   `${value.toLocaleString(undefined, {
     minimumFractionDigits: 1,
@@ -1716,8 +1719,8 @@ function App() {
                   ? formatValueWithDelta(
                       ssvPriceAdjusted,
                       ssvPriceDeltaPct,
-                      formatCurrency
-                    ) ?? formatCurrency(ssvPriceAdjusted)
+                      formatCurrencyWithCents
+                    ) ?? formatCurrencyWithCents(ssvPriceAdjusted)
                 : loading
                 ? 'Loading...'
                 : '—'
@@ -1726,7 +1729,7 @@ function App() {
               maxLabel={formatDeltaLabel(deltaRanges.ssvPrice.max)}
               hint={
                 ssvPriceBaseline !== null
-                  ? `Baseline ${formatCurrency(
+                  ? `Baseline ${formatCurrencyWithCents(
                       ssvPriceBaseline
                     )} · adjust from ${formatDeltaLabel(
                       deltaRanges.ssvPrice.min
