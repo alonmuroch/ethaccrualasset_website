@@ -10,4 +10,8 @@ export default defineConfig({
       allow: [path.resolve(__dirname, '..')],
     },
   },
+  preview: {
+    // Allow Render internal hostnames (e.g., ethaccrualasset-website-q95y) when running `vite preview`
+    allowedHosts: true,
+  },
 })
