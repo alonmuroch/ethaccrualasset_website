@@ -44,7 +44,7 @@ const formatPercent = (value) =>
 const DEFAULT_SLIDER_DELTA_RANGES = Object.freeze({
   ethPrice: { min: -100, max: 200 },
   ssvPrice: { min: -100, max: 2000 },
-  stakedEth: { min: -25, max: 200 },
+  stakedEth: { min: -100, max: 200 },
 })
 
 const readEnvNumber = (key) => {
@@ -193,7 +193,7 @@ const computeAdjustedValue = (baseline, deltaPct) => {
 }
 
 const NETWORK_FEE_BASELINE = 0.01
-const MIN_SSV_PRICE_FLOOR_DEFAULT = 7
+const MIN_SSV_PRICE_FLOOR_DEFAULT = 3.5
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max)
 
@@ -270,6 +270,13 @@ const YearlyImpChart = ({ data }) => {
                   'IMP Actual Boost',
                 ]
               }
+              if (dataKey === 'networkFeePercent') {
+                const feePercent = Number(value)
+                return [
+                  Number.isFinite(feePercent) ? `${feePercent.toFixed(2)}%` : value,
+                  'Network Fee (%)',
+                ]
+              }
               return [value, name]
             }}
             labelFormatter={(value) =>
@@ -289,6 +296,14 @@ const YearlyImpChart = ({ data }) => {
             dataKey="boostPercent"
             name="IMP Actual Boost"
             stroke="#f97316"
+            dot={false}
+            yAxisId="boost"
+          />
+          <Line
+            type="monotone"
+            dataKey="networkFeePercent"
+            name="Network Fee (%)"
+            stroke="#22c55e"
             dot={false}
             yAxisId="boost"
           />
@@ -602,6 +617,25 @@ function App() {
           Number.isFinite(backendStakedEth)
         ) {
           setStakedEthBaseline(backendStakedEth)
+        }
+
+        const rawNetworkFeePercent =
+          typeof data?.data?.networkFeePercent === 'number'
+            ? data.data.networkFeePercent
+            : typeof data?.config?.networkFeePercent === 'number'
+            ? data.config.networkFeePercent
+            : null
+        if (
+          typeof rawNetworkFeePercent === 'number' &&
+          Number.isFinite(rawNetworkFeePercent)
+        ) {
+          const normalized =
+            rawNetworkFeePercent > 1
+              ? rawNetworkFeePercent / 100
+              : rawNetworkFeePercent
+          if (normalized > 0 && normalized < 1) {
+            setLiveNetworkFeeDecimal(normalized)
+          }
         }
 
         setError(null)
@@ -1044,6 +1078,13 @@ function App() {
       return []
     }
 
+    const hasNetworkFeeCurveInputs =
+      netFeeUsdPerValidator !== null &&
+      perValidatorEthYieldUsd !== null &&
+      perValidatorEthYieldUsd > 0 &&
+      Number.isFinite(sanitizedMinSsvPriceFloor) &&
+      sanitizedMinSsvPriceFloor > 0
+
     const baseRequirement =
       finalStakedEth *
       finalEthAprDecimal *
@@ -1076,7 +1117,16 @@ function App() {
         ((minted / totalValidators) * price) / (32 * finalEthPrice * finalEthAprDecimal)
       const boostPercent =
         typeof boost === 'number' && Number.isFinite(boost) ? boost * 100 : null
-      points.push({ price, minted, boostPercent })
+      let networkFeePercent = null
+      if (hasNetworkFeeCurveInputs) {
+        const divisor = Math.max(price, sanitizedMinSsvPriceFloor)
+        const feeSsv = netFeeUsdPerValidator / divisor
+        const percentDecimal = (feeSsv * price) / perValidatorEthYieldUsd
+        if (Number.isFinite(percentDecimal)) {
+          networkFeePercent = percentDecimal * 100
+        }
+      }
+      points.push({ price, minted, boostPercent, networkFeePercent })
     }
 
     return points
@@ -1088,6 +1138,9 @@ function App() {
     impTierBoostMultiplier,
     impInflationCapSsv,
     totalValidators,
+    netFeeUsdPerValidator,
+    perValidatorEthYieldUsd,
+    sanitizedMinSsvPriceFloor,
   ])
 
   const networkFeePercentGraphPoints = useMemo(() => {
@@ -1751,18 +1804,3 @@ function App() {
 }
 
 export default App
-        const rawNetworkFeePercent =
-          typeof data?.data?.networkFeePercent === 'number'
-            ? data.data.networkFeePercent
-            : typeof data?.config?.networkFeePercent === 'number'
-            ? data.config.networkFeePercent
-            : null
-        if (typeof rawNetworkFeePercent === 'number' && Number.isFinite(rawNetworkFeePercent)) {
-          const normalized =
-            rawNetworkFeePercent > 1
-              ? rawNetworkFeePercent / 100
-              : rawNetworkFeePercent
-          if (normalized > 0 && normalized < 1) {
-            setLiveNetworkFeeDecimal(normalized)
-          }
-        }
