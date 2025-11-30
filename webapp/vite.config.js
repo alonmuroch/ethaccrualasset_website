@@ -11,7 +11,7 @@ export default defineConfig({
     },
   },
   preview: {
-    // Allow Render internal hostnames (e.g., ethaccrualasset-website-q95y) when running `vite preview`
-    allowedHosts: true,
+    // Allow Render internal hostnames (service discovery) when running `vite preview`
+    allowedHosts: ['ethaccrualasset-website-q95y', '.onrender.com'],
   },
 })
