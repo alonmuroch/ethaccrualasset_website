@@ -317,6 +317,15 @@ const YearlyImpChart = ({ data }) => {
             dot={false}
             yAxisId="boost"
           />
+          <Line
+            type="monotone"
+            dataKey="networkFeePercentV1"
+            name="Network Fee V1 (%)"
+            stroke="#6366f1"
+            strokeDasharray="5 3"
+            dot={false}
+            yAxisId="boost"
+          />
         </LineChart>
       </ResponsiveContainer>
     </div>
@@ -1208,6 +1217,11 @@ function App() {
 
     const steps = 40
     const points = []
+    const feePercentV1 =
+      typeof networkFeeTargetDecimal === 'number' && Number.isFinite(networkFeeTargetDecimal)
+        ? networkFeeTargetDecimal * 100
+        : null
+
     for (let step = 0; step <= steps; step += 1) {
       const t = step / steps
       const price =
@@ -1237,7 +1251,7 @@ function App() {
           networkFeePercent = percentDecimal * 100
         }
       }
-      points.push({ price, minted, boostPercent, networkFeePercent })
+      points.push({ price, minted, boostPercent, networkFeePercent, networkFeePercentV1: feePercentV1 })
     }
 
     return points
@@ -1531,6 +1545,7 @@ function App() {
                   <div className="fee-floor-control">
                     <div className="fee-floor-control-header">
                       <span>Adjust floor</span>
+                      <span className="fee-floor-value">{formattedMinSsvPriceFloor}</span>
                       <button
                         type="button"
                         className="fee-floor-reset"
