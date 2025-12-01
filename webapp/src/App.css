@@ -979,6 +979,85 @@
   color: #2563eb;
 }
 
+.fee-model-switch {
+  background: #fff;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 1rem;
+  padding: 1rem 1.25rem;
+  box-shadow: 0 15px 35px rgba(15, 23, 42, 0.07);
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  width: 100%;
+  justify-self: stretch;
+  align-self: stretch;
+  margin-top: 0;
+}
+
+.fee-model-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.fee-model-label {
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.fee-model-caption {
+  color: #64748b;
+  font-size: 0.9rem;
+}
+
+.fee-model-buttons {
+  display: inline-flex;
+  gap: 0.4rem;
+  background: #e2e8f0;
+  border-radius: 999px;
+  padding: 0.3rem;
+  width: fit-content;
+  margin-top: 0.1rem;
+}
+
+.fee-model-buttons button {
+  border: none;
+  background: transparent;
+  color: #334155;
+  padding: 0.45rem 0.85rem;
+  border-radius: 999px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.fee-model-buttons button.active {
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  color: #fff;
+  box-shadow: 0 10px 25px rgba(37, 99, 235, 0.3);
+}
+
+.fee-model-buttons button:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+
+.fee-model-note {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #64748b;
+}
+
+.fee-model-note a {
+  color: #2563eb;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.fee-model-note a:hover {
+  text-decoration: underline;
+}
+
 .control-hint {
   margin: 0;
   font-size: 0.85rem;

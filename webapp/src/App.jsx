@@ -347,6 +347,10 @@ const NetworkFeeChart = ({ data }) => {
             }
           />
           <YAxis
+            domain={[
+              0,
+              (dataMax) => (Number.isFinite(dataMax) ? dataMax * 1.25 : dataMax),
+            ]}
             tickFormatter={(value) =>
               typeof value === 'number' ? `${value.toFixed(2)}%` : value
             }
@@ -364,6 +368,14 @@ const NetworkFeeChart = ({ data }) => {
             dataKey="feePercent"
             name="Network fee (%)"
             stroke="#22c55e"
+            dot={false}
+          />
+          <Line
+            type="monotone"
+            dataKey="feePercentV1"
+            name="Network fee V1 (%)"
+            stroke="#6366f1"
+            strokeDasharray="5 3"
             dot={false}
           />
         </LineChart>
@@ -394,7 +406,7 @@ const IMP_MAX_INFLATION_PERCENT = resolveImpMaxInflationPercent()
 
 const SUMMARY_TABS = Object.freeze([
   { id: 'calculator', label: 'Calculator' },
-  { id: 'fee', label: 'Fee V2' },
+  { id: 'fee', label: 'Fee' },
   { id: 'imp', label: 'IMP' },
   { id: 'impTier', label: 'IMP Tier' },
 ])
@@ -538,6 +550,7 @@ function App() {
       INITIAL_SLIDER_DELTA_RANGES.networkFee.max
     )
   )
+  const [feeModel, setFeeModel] = useState('v1')
   const [minSsvPriceFloor, setMinSsvPriceFloor] = useState(
     MIN_SSV_PRICE_FLOOR_DEFAULT
   )
@@ -760,6 +773,8 @@ function App() {
     typeof networkFeeAdjusted === 'number' && Number.isFinite(networkFeeAdjusted)
       ? networkFeeAdjusted
       : null
+
+  const networkFeeTargetDecimal = finalNetworkFeeDecimal
 
   const perValidatorEthYieldUsd =
     finalEthPrice !== null && finalEthAprDecimal !== null
@@ -1171,15 +1186,26 @@ function App() {
   ])
 
   const networkFeePercentGraphPoints = useMemo(() => {
+    if (!ssvPriceGraphRange) {
+      return []
+    }
+
+    const feePercentV1 =
+      typeof networkFeeTargetDecimal === 'number' && Number.isFinite(networkFeeTargetDecimal)
+        ? networkFeeTargetDecimal * 100
+        : null
+
     if (
-      !ssvPriceGraphRange ||
       netFeeUsdPerValidator === null ||
       perValidatorEthYieldUsd === null ||
       perValidatorEthYieldUsd <= 0 ||
       !Number.isFinite(sanitizedMinSsvPriceFloor) ||
       sanitizedMinSsvPriceFloor <= 0
     ) {
-      return []
+      // Show a flat V1 line if available even when V2 inputs are missing.
+      if (feePercentV1 === null) {
+        return []
+      }
     }
 
     const minPrice = Number.isFinite(ssvPriceGraphRange.min)
@@ -1197,21 +1223,29 @@ function App() {
       if (!Number.isFinite(price) || price <= 0) {
         continue
       }
-      const divisor = Math.max(price, sanitizedMinSsvPriceFloor)
-      if (!Number.isFinite(divisor) || divisor <= 0) {
-        continue
-      }
-      const feeSsv = netFeeUsdPerValidator / divisor
-      if (!Number.isFinite(feeSsv)) {
-        continue
-      }
-      const percentDecimal = (feeSsv * price) / perValidatorEthYieldUsd
-      if (!Number.isFinite(percentDecimal)) {
-        continue
+      let feePercent = null
+      if (
+        netFeeUsdPerValidator !== null &&
+        perValidatorEthYieldUsd !== null &&
+        perValidatorEthYieldUsd > 0 &&
+        Number.isFinite(sanitizedMinSsvPriceFloor) &&
+        sanitizedMinSsvPriceFloor > 0
+      ) {
+        const divisor = Math.max(price, sanitizedMinSsvPriceFloor)
+        if (Number.isFinite(divisor) && divisor > 0) {
+          const feeSsv = netFeeUsdPerValidator / divisor
+          if (Number.isFinite(feeSsv)) {
+            const percentDecimal = (feeSsv * price) / perValidatorEthYieldUsd
+            if (Number.isFinite(percentDecimal)) {
+              feePercent = percentDecimal * 100
+            }
+          }
+        }
       }
       points.push({
         price,
-        feePercent: percentDecimal * 100,
+        feePercent,
+        feePercentV1,
       })
     }
 
@@ -1221,6 +1255,7 @@ function App() {
     netFeeUsdPerValidator,
     perValidatorEthYieldUsd,
     sanitizedMinSsvPriceFloor,
+    networkFeeTargetDecimal,
   ])
 
   const shareOnTwitter = useCallback(() => {
@@ -1765,6 +1800,40 @@ function App() {
               onReset={() => setNetworkFeeDeltaPct(0)}
               canReset={networkFeeDeltaPct !== 0}
             />
+            <div className="fee-model-switch" role="group" aria-label="Select fee model">
+              <div className="fee-model-header">
+                <span className="fee-model-label">Fee Model</span>
+              </div>
+              <div className="fee-model-buttons">
+                <button
+                  type="button"
+                  className={feeModel === 'v1' ? 'active' : undefined}
+                  aria-pressed={feeModel === 'v1'}
+                  onClick={() => setFeeModel('v1')}
+                >
+                  V1
+                </button>
+                <button
+                  type="button"
+                  className={feeModel === 'v2' ? 'active' : undefined}
+                  aria-pressed={feeModel === 'v2'}
+                  onClick={() => setFeeModel('v2')}
+                >
+                  V2
+                </button>
+              </div>
+              <p className="fee-model-note">
+                V1: fixed % of ETH rewards. V2: includes a minimum SSV price floor per the{' '}
+                <a
+                  href="https://docs.google.com/document/d/1cw78RRYkV8RlmyZ6mf33RXena3kFIhC5iaiuTFEkcms/edit?tab=t.0"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  V2 fee spec
+                </a>
+                .
+              </p>
+            </div>
             <SliderControl
               label="% Staked SSV"
               value={stakedSsvPercent}
