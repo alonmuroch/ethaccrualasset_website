@@ -405,8 +405,8 @@ const resolveImpMaxInflationPercent = () => {
 const IMP_MAX_INFLATION_PERCENT = resolveImpMaxInflationPercent()
 
 const SUMMARY_TABS = Object.freeze([
-  { id: 'calculator', label: 'Calculator' },
-  { id: 'fee', label: 'Fee' },
+  { id: 'calculator', label: 'SSV Staking' },
+  { id: 'fee', label: 'Fees' },
   { id: 'imp', label: 'IMP' },
   { id: 'impTier', label: 'IMP Tier' },
 ])
@@ -550,7 +550,6 @@ function App() {
       INITIAL_SLIDER_DELTA_RANGES.networkFee.max
     )
   )
-  const [feeModel, setFeeModel] = useState('v1')
   const [minSsvPriceFloor, setMinSsvPriceFloor] = useState(
     MIN_SSV_PRICE_FLOOR_DEFAULT
   )
@@ -892,6 +891,19 @@ function App() {
   const formattedOverallFeesV1 =
     overallFeesUsdV1 !== null ? formatCurrency(overallFeesUsdV1) : '—'
 
+  const ssvAprV1 =
+    overallFeesUsdV1 !== null &&
+    finalStakedSsv !== null &&
+    finalStakedSsv > 0 &&
+    finalSsvPrice !== null &&
+    finalSsvPrice > 0
+      ? overallFeesUsdV1 / (finalStakedSsv * finalSsvPrice)
+      : null
+  const formattedSsvAprV1 =
+    typeof ssvAprV1 === 'number' && Number.isFinite(ssvAprV1)
+      ? formatPercent(ssvAprV1 * 100)
+      : '—'
+
   const v2FeePercentValue =
     typeof networkFeePercentPerYear === 'number' && Number.isFinite(networkFeePercentPerYear)
       ? networkFeePercentPerYear * 100
@@ -913,6 +925,19 @@ function App() {
       : null
   const formattedOverallFeesV2 =
     overallFeesUsdV2 !== null ? formatCurrency(overallFeesUsdV2) : '—'
+
+  const ssvAprV2 =
+    overallFeesUsdV2 !== null &&
+    finalStakedSsv !== null &&
+    finalStakedSsv > 0 &&
+    finalSsvPrice !== null &&
+    finalSsvPrice > 0
+      ? overallFeesUsdV2 / (finalStakedSsv * finalSsvPrice)
+      : null
+  const formattedSsvAprV2 =
+    typeof ssvAprV2 === 'number' && Number.isFinite(ssvAprV2)
+      ? formatPercent(ssvAprV2 * 100)
+      : '—'
 
   const formattedMinSsvPriceFloor = formatCurrency(sanitizedMinSsvPriceFloor, {
     minimumFractionDigits: 2,
@@ -1436,29 +1461,20 @@ function App() {
                   <>
                     <div className="summary-pull">
                 <article className="metric-card highlight summary-card">
-                  <span className="metric-label">Network Fee (Yearly)</span>
-                  <span className="metric-value">{formattedOverallFees}</span>
-                  <span className="metric-subtitle">USD</span>
+                  <span className="metric-label">Staked SSV APR (Fee V1)</span>
+                  <span className="metric-value">{formattedSsvAprV1}</span>
+                  <span className="metric-subtitle">percent</span>
                   <p className="summary-description">
-                    The yearly fees the entire SSV Network accumulates under the assumptions you configure below.
-                  </p>
-                  <p className="summary-note">
-                    Updates instantly as you adjust the inputs below.
+                    Based on the Fee V1 yearly fees relative to total staked SSV.
                   </p>
                 </article>
                 <article className="metric-card summary-card">
-                  <span className="metric-label">Staked SSV APR</span>
-                  <span className="metric-value">{formattedSsvApr}</span>
+                  <span className="metric-label">Staked SSV APR (Fee V2)</span>
+                  <span className="metric-value">{formattedSsvAprV2}</span>
                   <span className="metric-subtitle">percent</span>
                   <p className="summary-description">
-                    The resulting APR, paid in ETH, for staking SSV with those same inputs.
+                    Based on the floor-adjusted Fee V2 yearly fees relative to total staked SSV.
                   </p>
-                  <p className="summary-note">
-                    Useful for comparing ETH-denominated yields across scenarios.
-                  </p>
-                  <button type="button" className="share-button" onClick={shareOnTwitter}>
-                    Share on X
-                  </button>
                 </article>
               </div>
               <div className="summary-text">
@@ -1819,40 +1835,6 @@ function App() {
               onReset={() => setNetworkFeeDeltaPct(0)}
               canReset={networkFeeDeltaPct !== 0}
             />
-            <div className="fee-model-switch" role="group" aria-label="Select fee model">
-              <div className="fee-model-header">
-                <span className="fee-model-label">Fee Model</span>
-              </div>
-              <div className="fee-model-buttons">
-                <button
-                  type="button"
-                  className={feeModel === 'v1' ? 'active' : undefined}
-                  aria-pressed={feeModel === 'v1'}
-                  onClick={() => setFeeModel('v1')}
-                >
-                  V1
-                </button>
-                <button
-                  type="button"
-                  className={feeModel === 'v2' ? 'active' : undefined}
-                  aria-pressed={feeModel === 'v2'}
-                  onClick={() => setFeeModel('v2')}
-                >
-                  V2
-                </button>
-              </div>
-              <p className="fee-model-note">
-                V1: fixed % of ETH rewards. V2: includes a minimum SSV price floor per the{' '}
-                <a
-                  href="https://docs.google.com/document/d/1cw78RRYkV8RlmyZ6mf33RXena3kFIhC5iaiuTFEkcms/edit?tab=t.0"
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  V2 fee spec
-                </a>
-                .
-              </p>
-            </div>
             <SliderControl
               label="% Staked SSV"
               value={stakedSsvPercent}
