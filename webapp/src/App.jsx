@@ -222,7 +222,7 @@ const YearlyImpChart = ({ data }) => {
       <div className="imp-chart-title">
         <span>Yearly IMP vs. SSV Price</span>
       </div>
-      <ResponsiveContainer width="100%" height={260}>
+      <ResponsiveContainer width="100%" height="100%">
         <LineChart data={data} margin={{ top: 10, right: 24, left: 0, bottom: 10 }}>
           <XAxis
             dataKey="price"
@@ -347,7 +347,7 @@ const NetworkFeeChart = ({ data }) => {
       <div className="imp-chart-title">
         <span>Network Fee % vs. SSV Price</span>
       </div>
-      <ResponsiveContainer width="100%" height={260}>
+      <ResponsiveContainer width="100%" height="100%">
         <LineChart data={data} margin={{ top: 10, right: 24, left: 0, bottom: 10 }}>
           <XAxis
             dataKey="price"

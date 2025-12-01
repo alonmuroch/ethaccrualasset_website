@@ -536,6 +536,18 @@
   background: transparent;
   border: none;
   box-shadow: none;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.summary-content--imp .imp-graph-card {
+  align-self: stretch;
+}
+
+.imp-chart-wrapper {
+  flex: 1;
+  height: 100%;
 }
 
 .fee-floor-control {
