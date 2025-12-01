@@ -421,6 +421,11 @@
   margin-top: 0.2rem;
 }
 
+.metric-subvalue-strong {
+  font-weight: 700;
+  color: #0f172a;
+}
+
 .tier-table {
   width: 100%;
   border-collapse: collapse;
@@ -1056,6 +1061,16 @@
 
 .fee-model-note a:hover {
   text-decoration: underline;
+}
+
+.fee-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 1rem;
+}
+
+.fee-card {
+  min-height: 100%;
 }
 
 .control-hint {

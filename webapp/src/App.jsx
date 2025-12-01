@@ -870,6 +870,50 @@ function App() {
       ? formatPercent(networkFeePercentPerYearValue)
       : '—'
 
+  const v1FeePercentValue = networkFeeAdjustedPercent
+  const formattedV1FeePercent =
+    v1FeePercentValue !== null ? formatPercent(v1FeePercentValue) : '—'
+
+  const v1FeePerValidatorSsv =
+    perValidatorEthYieldUsd !== null &&
+    perValidatorEthYieldUsd > 0 &&
+    finalSsvPrice !== null &&
+    finalSsvPrice > 0 &&
+    finalNetworkFeeDecimal !== null
+      ? (perValidatorEthYieldUsd * finalNetworkFeeDecimal) / finalSsvPrice
+      : null
+
+  const formattedV1FeePerValidatorSsv =
+    v1FeePerValidatorSsv !== null
+      ? formatTokenAmount(v1FeePerValidatorSsv, 'SSV')
+      : '—'
+
+  const overallFeesUsdV1 = overallFeesUsd
+  const formattedOverallFeesV1 =
+    overallFeesUsdV1 !== null ? formatCurrency(overallFeesUsdV1) : '—'
+
+  const v2FeePercentValue =
+    typeof networkFeePercentPerYear === 'number' && Number.isFinite(networkFeePercentPerYear)
+      ? networkFeePercentPerYear * 100
+      : null
+  const formattedV2FeePercent =
+    v2FeePercentValue !== null ? formatPercent(v2FeePercentValue) : '—'
+
+  const formattedV2FeePerValidatorSsv =
+    networkFeePerValidatorSsv !== null
+      ? formatTokenAmount(networkFeePerValidatorSsv, 'SSV')
+      : '—'
+
+  const overallFeesUsdV2 =
+    finalStakedEth !== null &&
+    finalEthPrice !== null &&
+    finalEthAprDecimal !== null &&
+    networkFeePercentPerYear !== null
+      ? finalStakedEth * finalEthPrice * finalEthAprDecimal * networkFeePercentPerYear
+      : null
+  const formattedOverallFeesV2 =
+    overallFeesUsdV2 !== null ? formatCurrency(overallFeesUsdV2) : '—'
+
   const formattedMinSsvPriceFloor = formatCurrency(sanitizedMinSsvPriceFloor, {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
@@ -1444,54 +1488,29 @@ function App() {
             </>
           ) : activeSummaryTab === 'fee' ? (
             <>
-              <div className="summary-pull">
-                <article className="metric-card summary-card">
-                  <span className="metric-label">Current SSV Network Fee</span>
-                  <span className="metric-value">{formattedBaselineNetworkFeePercent}</span>
-                  <span className="metric-subtitle">protocol setting</span>
-                  <p className="summary-description">
-                    Pulled from the market snapshot when available. Defaults to the proposal&apos;s 1% assumption.
+              <div className="fee-summary-grid">
+                <article className="metric-card highlight summary-card fee-card">
+                  <span className="metric-label">Fee V1</span>
+                  <span className="metric-value">{formattedV1FeePercent}</span>
+                  <span className="metric-subtitle">percent (slider)</span>
+                  <p className="metric-subvalue">{formattedV1FeePerValidatorSsv} per validator · year</p>
+                  <p className="metric-subvalue metric-subvalue-strong">
+                    {formattedOverallFeesV1} overall / year
                   </p>
-                  <p className="summary-note">
-                    Useful for tracking DAO-approved changes independently of scenario tweaking.
+                  <p className="summary-description">
+                    Fixed percent of ETH rewards using the slider input.
                   </p>
                 </article>
-                <article className="metric-card highlight summary-card">
-                  <span className="metric-label">Network Fee (per validator)</span>
-                  <span className="metric-value">{formattedNetworkFeePerValidatorSsv}</span>
-                  <span className="metric-subvalue">
-                    {networkFeePerValidatorUsd !== null
-                      ? `≈ ${formattedNetworkFeePerValidatorUsd}`
-                      : '—'}
-                  </span>
-                  <span className="metric-subtitle">SSV / year</span>
+                <article className="metric-card summary-card fee-card">
+                  <span className="metric-label">Fee V2</span>
+                  <span className="metric-value">{formattedV2FeePercent}</span>
+                  <span className="metric-subtitle">percent (with floor)</span>
+                  <p className="metric-subvalue">{formattedV2FeePerValidatorSsv} per validator · year</p>
+                  <p className="metric-subvalue metric-subvalue-strong">
+                    {formattedOverallFeesV2} overall / year
+                  </p>
                   <p className="summary-description">
-                    Targets {formattedBaselineNetworkFeePercent} of a validator's ETH yield using your current APR and price inputs.
-                  </p>
-                  <p className="summary-note">
-                    Divides by the higher of spot SSV or the configured floor to decide how many SSV tokens to charge.
-                  </p>
-                </article>
-                <article className="metric-card summary-card">
-                  <span className="metric-label">Network Fee (%)</span>
-                  <span className="metric-value">{formattedNetworkFeePercentPerYear}</span>
-                  <span className="metric-subtitle">per year</span>
-                  <p className="summary-description">
-                    Effective fee share at the current SSV price. Falls below target when spot trades under the floor.
-                  </p>
-                  <p className="summary-note">
-                    Update the network fee slider to model higher or lower take rates.
-                  </p>
-                </article>
-                <article className="metric-card summary-card">
-                  <span className="metric-label">Min SSV Price Floor</span>
-                  <span className="metric-value">{formattedMinSsvPriceFloor}</span>
-                  <span className="metric-subtitle">USD</span>
-                  <p className="summary-description">
-                    Below this price the fee-in-SSV amount stops growing, keeping USD-denominated fees predictable.
-                  </p>
-                  <p className="summary-note">
-                    Use the slider to stress-test different floors.
+                    Includes the minimum SSV price floor for fee-in-SSV calculations.
                   </p>
                   <div className="fee-floor-control">
                     <div className="fee-floor-control-header">
