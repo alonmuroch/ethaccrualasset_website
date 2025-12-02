@@ -426,6 +426,12 @@
   color: #0f172a;
 }
 
+.metric-divider {
+  border: 0;
+  border-top: 1px solid #cbd5e1;
+  margin: 0.85rem 0;
+}
+
 .tier-table {
   width: 100%;
   border-collapse: collapse;
@@ -1011,6 +1017,7 @@
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   gap: 1rem;
+  align-items: start;
 }
 
 .fee-card {

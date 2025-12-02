@@ -7,6 +7,7 @@ Minimal Express service that periodically pulls ETH/SSV prices, ETH staking APR,
 1. Copy `.env.example` to `.env` and populate:
    - `CMC_API_KEY` with your CoinMarketCap Pro key.
    - `ETHSTORE_API_KEY` with your beaconcha.in API key (ETH.Store access).
+   - `MAINNET_RPC_URL` (or `ETHEREUM_RPC_URL`) with an Ethereum mainnet RPC endpoint so the service can read the current SSV network fee from `getNetworkFee()`. If you use an Infura URL, you may also set `INFURA_PROJECT_SECRET` to send basic-auth credentials alongside that URL.
    - Optionally adjust `PRICE_REFRESH_INTERVAL_MS`, `ETHSTORE_DAY`, or API URLs (including `STAKED_ETH_API_URL`).
 2. Install dependencies:
    ```bash
@@ -25,7 +26,7 @@ npm start
 
 The service listens on `PORT` (default `4000`) and refreshes data every `PRICE_REFRESH_INTERVAL_MS` milliseconds (default 5 minutes). Data is available at:
 
-- `GET /api/prices` – latest cached market prices (ETH, SSV), ETH staking APR (`avgapr31d` when available), and total staked ETH from ssv.network.
+- `GET /api/prices` – latest cached market prices (ETH, SSV), ETH staking APR (`avgapr31d` when available), total staked ETH from ssv.network, and the current SSV network fee percent from `getNetworkFee()` on mainnet.
 - `GET /health` – polling status details.
 
 > **Note:** The service stores data in memory only. Restarting the process clears the cache until the next successful fetch.

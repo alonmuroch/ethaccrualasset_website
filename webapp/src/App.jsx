@@ -564,6 +564,7 @@ function App() {
   )
   const [stakedSsvPercent, setStakedSsvPercent] = useState(STAKED_SSV_BASELINE)
   const [liveNetworkFeeDecimal, setLiveNetworkFeeDecimal] = useState(null)
+  const [contractNetworkFeePerYearSsv, setContractNetworkFeePerYearSsv] = useState(null)
   const [headerUiState, setHeaderUiState] = useState(() => ({
     isElevated: false,
     showApr: false,
@@ -680,6 +681,15 @@ function App() {
           if (normalized > 0 && normalized < 1) {
             setLiveNetworkFeeDecimal(normalized)
           }
+        }
+
+        if (typeof data?.data?.currentContractFee === 'number' && Number.isFinite(data.data.currentContractFee)) {
+          setContractNetworkFeePerYearSsv(data.data.currentContractFee)
+        } else if (
+          typeof data?.data?.networkFeeYearlySsv === 'number' &&
+          Number.isFinite(data.data.networkFeeYearlySsv)
+        ) {
+          setContractNetworkFeePerYearSsv(data.data.networkFeeYearlySsv)
         }
 
         setError(null)
@@ -894,6 +904,11 @@ function App() {
   const formattedV1FeePerValidatorSsv =
     v1FeePerValidatorSsv !== null
       ? formatTokenAmount(v1FeePerValidatorSsv, 'SSV')
+      : '—'
+
+  const formattedContractFeePerValidatorSsv =
+    typeof contractNetworkFeePerYearSsv === 'number' && Number.isFinite(contractNetworkFeePerYearSsv)
+      ? formatTokenAmount(contractNetworkFeePerYearSsv, 'SSV')
       : '—'
 
   const overallFeesUsdV1 = overallFeesUsd
@@ -1523,13 +1538,23 @@ function App() {
                   <span className="metric-label">Fee V1</span>
                   <span className="metric-value">{formattedV1FeePercent}</span>
                   <span className="metric-subtitle">percent (slider)</span>
-                  <p className="metric-subvalue">{formattedV1FeePerValidatorSsv} per validator · year</p>
+                  <p className="metric-subvalue">
+                    {formattedV1FeePerValidatorSsv} per validator · year
+                  </p>
                   <p className="metric-subvalue metric-subvalue-strong">
                     {formattedOverallFeesV1} overall / year
                   </p>
                   <p className="summary-description">
                     Fixed percent of ETH rewards using the slider input.
                   </p>
+                  <hr className="metric-divider" />
+                  {formattedContractFeePerValidatorSsv !== '—' ? (
+                    <>
+                      <p className="metric-subvalue">
+                        <strong>Current set in contract: {formattedContractFeePerValidatorSsv}</strong>
+                      </p>
+                    </>
+                  ) : null}
                 </article>
                 <article className="metric-card summary-card fee-card">
                   <span className="metric-label">Fee V2</span>
@@ -1542,6 +1567,7 @@ function App() {
                   <p className="summary-description">
                     Includes the minimum SSV price floor for fee-in-SSV calculations.
                   </p>
+                  <hr className="metric-divider" />
                   <div className="fee-floor-control">
                     <div className="fee-floor-control-header">
                       <span>Adjust floor</span>
