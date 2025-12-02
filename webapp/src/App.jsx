@@ -227,7 +227,7 @@ const YearlyImpChart = ({ data }) => {
           <XAxis
             dataKey="price"
             tickFormatter={(value) =>
-              typeof value === 'number' ? `$${value.toFixed(0)}` : value
+              typeof value === 'number' ? `$${value.toFixed(2)}` : value
             }
           />
           <YAxis
@@ -349,13 +349,32 @@ const NetworkFeeChart = ({ data }) => {
       </div>
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={data} margin={{ top: 10, right: 24, left: 0, bottom: 10 }}>
+          {/*
+            Share the same domain for both Y axes so the right-side scale matches the left.
+            This keeps V1 (dashed) aligned with V2 (solid) while ensuring the right axis renders.
+          */}
+          {/*
+            Note: domainResolver is inlined in both axes to avoid introducing extra component-level variables.
+          */}
           <XAxis
             dataKey="price"
             tickFormatter={(value) =>
-              typeof value === 'number' ? `$${value.toFixed(0)}` : value
+              typeof value === 'number' ? `$${value.toFixed(2)}` : value
             }
           />
           <YAxis
+            yAxisId="left"
+            domain={[
+              0,
+              (dataMax) => (Number.isFinite(dataMax) ? dataMax * 1.25 : dataMax),
+            ]}
+            tickFormatter={(value) =>
+              typeof value === 'number' ? `${value.toFixed(2)}%` : value
+            }
+          />
+          <YAxis
+            yAxisId="right"
+            orientation="right"
             domain={[
               0,
               (dataMax) => (Number.isFinite(dataMax) ? dataMax * 1.25 : dataMax),
@@ -378,6 +397,7 @@ const NetworkFeeChart = ({ data }) => {
             name="Network fee (%)"
             stroke="#22c55e"
             dot={false}
+            yAxisId="left"
           />
           <Line
             type="monotone"
@@ -386,6 +406,7 @@ const NetworkFeeChart = ({ data }) => {
             stroke="#6366f1"
             strokeDasharray="5 3"
             dot={false}
+            yAxisId="right"
           />
         </LineChart>
       </ResponsiveContainer>
@@ -1180,23 +1201,29 @@ function App() {
       : 300
 
   const ssvPriceGraphRange = useMemo(() => {
-    const base =
+    const baselineCandidate =
       typeof ssvPriceBaseline === 'number' &&
       Number.isFinite(ssvPriceBaseline) &&
       ssvPriceBaseline > 0
         ? ssvPriceBaseline
-        : typeof finalSsvPrice === 'number' &&
-          Number.isFinite(finalSsvPrice) &&
-          finalSsvPrice > 0
+        : null
+    const adjustedCandidate =
+      typeof finalSsvPrice === 'number' &&
+      Number.isFinite(finalSsvPrice) &&
+      finalSsvPrice > 0
         ? finalSsvPrice
         : null
+
+    // Use the current baseline price when available; fall back to the adjusted value.
+    const base = baselineCandidate ?? adjustedCandidate
 
     if (base === null) {
       return null
     }
 
     const minCandidate = base * (1 + ssvPriceMinDelta / 100)
-    const maxCandidate = base * (1 + ssvPriceMaxDelta / 100)
+    // Extend x-axis up to 300% of the current SSV price (3x the price).
+    const maxCandidate = base * 3
     let min = Number.isFinite(minCandidate) ? minCandidate : base * 0.25
     let max = Number.isFinite(maxCandidate) ? maxCandidate : base * 1.75
 
@@ -1208,7 +1235,7 @@ function App() {
     }
 
     return { min, max }
-  }, [ssvPriceBaseline, finalSsvPrice, ssvPriceMinDelta, ssvPriceMaxDelta])
+  }, [ssvPriceBaseline, finalSsvPrice, ssvPriceMinDelta])
 
   const impYearlyGraphPoints = useMemo(() => {
     if (
