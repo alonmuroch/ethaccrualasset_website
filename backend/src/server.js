@@ -31,7 +31,10 @@ const INFURA_PROJECT_SECRET = process.env.INFURA_PROJECT_SECRET || process.env.I
 const MAINNET_NETWORK = { name: 'homestead', chainId: 1 }
 const ETH_BLOCK_TIME_SEC = 12
 const BLOCKS_PER_YEAR = Math.round((365 * 24 * 60 * 60) / ETH_BLOCK_TIME_SEC)
-const PRICE_HISTORY_WINDOW_MS = 30 * 24 * 60 * 60 * 1000 // 30 days
+// Keep a longer buffer so we can compute the prior calendar month's closes even a few days into
+// the new month (e.g., Dec 2 still needs Nov 1 data). Retain ~60 days to comfortably span the
+// previous month plus a cushion.
+const PRICE_HISTORY_WINDOW_MS = 60 * 24 * 60 * 60 * 1000 // 60 days
 const NETWORK_FEE_PERCENT_V1 =
   process.env.NETWORK_FEE_PERCENT_V1 !== undefined
     ? Number(process.env.NETWORK_FEE_PERCENT_V1)
@@ -534,7 +537,8 @@ function backfillWithCurrentPrices() {
     const priceUsd = dataState.prices?.[symbol]?.priceUsd
     if (typeof priceUsd === 'number' && Number.isFinite(priceUsd) && priceUsd > 0) {
       const entries = []
-      for (let i = 29; i >= 0; i -= 1) {
+      // Backfill a 60-day window so calendar month calculations have full coverage.
+      for (let i = 59; i >= 0; i -= 1) {
         entries.push({ timestamp: now - i * dayMs, priceUsd })
       }
       dataState.priceHistory[symbol] = entries
