@@ -28,6 +28,7 @@ const INFURA_PROJECT_SECRET = process.env.INFURA_PROJECT_SECRET || process.env.I
 const MAINNET_NETWORK = { name: 'homestead', chainId: 1 }
 const ETH_BLOCK_TIME_SEC = 12
 const BLOCKS_PER_YEAR = Math.round((365 * 24 * 60 * 60) / ETH_BLOCK_TIME_SEC)
+const PRICE_HISTORY_WINDOW_MS = 30 * 24 * 60 * 60 * 1000 // 30 days
 const NETWORK_FEE_PERCENT_V1 =
   process.env.NETWORK_FEE_PERCENT_V1 !== undefined
     ? Number(process.env.NETWORK_FEE_PERCENT_V1)
@@ -69,6 +70,10 @@ const dataState = {
   stakingAprUpdatedAt: null,
   stakedEthUpdatedAt: null,
   networkFeeUpdatedAt: null,
+  priceHistory: {
+    ETH: [],
+    SSV: [],
+  },
   lastFetchError: {
     prices: null,
     stakingApr: null,
@@ -170,6 +175,7 @@ async function fetchLatestPrices() {
     dataState.prices = prices
     dataState.lastFetchError.prices = null
     dataState.pricesUpdatedAt = timestamp
+    addPriceHistory(prices)
 
     const priceSummary = symbols
       .map((symbol) => {
@@ -396,6 +402,71 @@ function normalizeNetworkFeeDecimal(rawFeeBigNumber) {
   return { percentDecimal: null, scale: null, perBlockSsv, perYearSsv }
 }
 
+function normalizePercentDecimal(rawPercent) {
+  if (typeof rawPercent !== 'number' || !Number.isFinite(rawPercent) || rawPercent <= 0) {
+    return null
+  }
+  return rawPercent > 1 ? rawPercent / 100 : rawPercent
+}
+
+function addPriceHistory(prices) {
+  if (!prices) return
+  const now = Date.now()
+  const cutoff = now - PRICE_HISTORY_WINDOW_MS
+  const symbolsList = ['ETH', 'SSV']
+  symbolsList.forEach((symbol) => {
+    const priceUsd = prices?.[symbol]?.priceUsd
+    if (typeof priceUsd === 'number' && Number.isFinite(priceUsd) && priceUsd > 0) {
+      dataState.priceHistory[symbol].push({ timestamp: now, priceUsd })
+    }
+    dataState.priceHistory[symbol] = dataState.priceHistory[symbol].filter(
+      (entry) => entry && typeof entry.timestamp === 'number' && entry.timestamp >= cutoff
+    )
+  })
+}
+
+function calculateMovingAverage(symbol) {
+  const entries = dataState.priceHistory?.[symbol] || []
+  if (!entries.length) return null
+  const sum = entries.reduce((acc, entry) => acc + entry.priceUsd, 0)
+  const avg = sum / entries.length
+  return Number.isFinite(avg) && avg > 0 ? avg : null
+}
+
+function logProjectedNextMonthFee() {
+  const avgEthPrice = calculateMovingAverage('ETH')
+  const avgSsvPrice = calculateMovingAverage('SSV')
+  const stakingAprDecimal = dataState.stakingApr?.value
+  const networkFeePercentDecimal = normalizePercentDecimal(NETWORK_FEE_PERCENT_V1)
+
+  if (
+    avgEthPrice === null ||
+    avgSsvPrice === null ||
+    typeof stakingAprDecimal !== 'number' ||
+    !Number.isFinite(stakingAprDecimal) ||
+    stakingAprDecimal <= 0 ||
+    !networkFeePercentDecimal
+  ) {
+    return
+  }
+
+  const perValidatorEthYieldUsd = 32 * avgEthPrice * stakingAprDecimal
+  if (!Number.isFinite(perValidatorEthYieldUsd) || perValidatorEthYieldUsd <= 0) {
+    return
+  }
+
+  const perYearSsv =
+    (perValidatorEthYieldUsd * networkFeePercentDecimal) / avgSsvPrice
+
+  if (Number.isFinite(perYearSsv) && perYearSsv > 0) {
+    console.info(
+      '[fee-projection] Next-month projected fee (30d MA) ≈',
+      `${perYearSsv.toFixed(4)} SSV/yr`,
+      `(ETH avg $${avgEthPrice.toFixed(2)}, SSV avg $${avgSsvPrice.toFixed(2)}, APR ${(stakingAprDecimal * 100).toFixed(2)}%, V1 fee ${(networkFeePercentDecimal * 100).toFixed(2)}%)`
+    )
+  }
+}
+
 async function fetchNetworkFee() {
   if (!mainnetProvider) {
     if (
@@ -508,6 +579,8 @@ async function fetchAllData() {
   if (pricesUpdated || aprUpdated || stakedEthUpdated || networkFeeUpdated) {
     dataState.lastUpdated = new Date().toISOString()
   }
+
+  logProjectedNextMonthFee()
 }
 
 async function startPolling() {
