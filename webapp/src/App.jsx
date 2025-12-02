@@ -506,14 +506,19 @@ const formatValueWithDelta = (value, deltaPct, formatter) => {
 }
 
 const formatEthAmount = (value) => `${formatNumber(Math.round(value))} ETH`
-const formatTokenAmount = (value, symbol) => {
+const formatTokenAmount = (value, symbol, options = {}) => {
   if (typeof value !== 'number' || !Number.isFinite(value)) {
     return `— ${symbol}`
   }
 
+  const {
+    minimumFractionDigits = 2,
+    maximumFractionDigits = 2,
+  } = options
+
   return `${new Intl.NumberFormat('en-US', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
+    minimumFractionDigits,
+    maximumFractionDigits,
   }).format(value)} ${symbol}`
 }
 
@@ -565,6 +570,7 @@ function App() {
   const [stakedSsvPercent, setStakedSsvPercent] = useState(STAKED_SSV_BASELINE)
   const [liveNetworkFeeDecimal, setLiveNetworkFeeDecimal] = useState(null)
   const [contractNetworkFeePerYearSsv, setContractNetworkFeePerYearSsv] = useState(null)
+  const [projectedNetworkFeePerYearSsv, setProjectedNetworkFeePerYearSsv] = useState(null)
   const [headerUiState, setHeaderUiState] = useState(() => ({
     isElevated: false,
     showApr: false,
@@ -690,6 +696,13 @@ function App() {
           Number.isFinite(data.data.networkFeeYearlySsv)
         ) {
           setContractNetworkFeePerYearSsv(data.data.networkFeeYearlySsv)
+        }
+
+        if (
+          typeof data?.data?.nextMonthNetworkFeeYearlySsv === 'number' &&
+          Number.isFinite(data.data.nextMonthNetworkFeeYearlySsv)
+        ) {
+          setProjectedNetworkFeePerYearSsv(data.data.nextMonthNetworkFeeYearlySsv)
         }
 
         setError(null)
@@ -908,7 +921,12 @@ function App() {
 
   const formattedContractFeePerValidatorSsv =
     typeof contractNetworkFeePerYearSsv === 'number' && Number.isFinite(contractNetworkFeePerYearSsv)
-      ? formatTokenAmount(contractNetworkFeePerYearSsv, 'SSV')
+      ? formatTokenAmount(contractNetworkFeePerYearSsv, 'SSV', { minimumFractionDigits: 4, maximumFractionDigits: 4 })
+      : '—'
+
+  const formattedProjectedContractFeePerValidatorSsv =
+    typeof projectedNetworkFeePerYearSsv === 'number' && Number.isFinite(projectedNetworkFeePerYearSsv)
+      ? formatTokenAmount(projectedNetworkFeePerYearSsv, 'SSV', { minimumFractionDigits: 4, maximumFractionDigits: 4 })
       : '—'
 
   const overallFeesUsdV1 = overallFeesUsd
@@ -1553,6 +1571,11 @@ function App() {
                       <p className="metric-subvalue">
                         <strong>Current set in contract: {formattedContractFeePerValidatorSsv}</strong>
                       </p>
+                      {formattedProjectedContractFeePerValidatorSsv !== '—' ? (
+                        <p className="metric-subvalue">
+                          Next-month projected fee: {formattedProjectedContractFeePerValidatorSsv}
+                        </p>
+                      ) : null}
                     </>
                   ) : null}
                 </article>

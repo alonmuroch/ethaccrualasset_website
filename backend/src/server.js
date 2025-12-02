@@ -11,6 +11,9 @@ const DEFAULT_SYMBOLS = ['ETH', 'SSV']
 const API_URL =
   process.env.CMC_API_URL ||
   'https://pro-api.coinmarketcap.com/v1/cryptocurrency/quotes/latest'
+const CMC_OHLCV_URL =
+  process.env.CMC_OHLCV_API_URL ||
+  'https://pro-api.coinmarketcap.com/v2/cryptocurrency/ohlcv/historical'
 const ETHSTORE_API_URL = (
   process.env.ETHSTORE_API_URL || 'https://beaconcha.in/api/v1/ethstore'
 ).replace(/\/$/, '')
@@ -70,10 +73,13 @@ const dataState = {
   stakingAprUpdatedAt: null,
   stakedEthUpdatedAt: null,
   networkFeeUpdatedAt: null,
+  lastCmcTimestamp: null,
+  assetIds: {},
   priceHistory: {
     ETH: [],
     SSV: [],
   },
+  nextMonthFeeProjection: null,
   lastFetchError: {
     prices: null,
     stakingApr: null,
@@ -83,6 +89,7 @@ const dataState = {
 }
 
 let mainnetProvider = null
+let hasSeededHistory = false
 
 const resolveMainnetProvider = () => {
   if (MAINNET_RPC_URL) {
@@ -148,14 +155,28 @@ async function fetchLatestPrices() {
     })
 
     const payload = response.data?.data || {}
+    const cmcTimestamp = response.data?.status?.timestamp
+    if (cmcTimestamp) {
+      dataState.lastCmcTimestamp = cmcTimestamp
+    }
 
     const prices = symbols.reduce((acc, symbol) => {
       const asset = payload[symbol]
       const usdQuote = asset?.quote?.USD
+      const closePrice =
+        typeof usdQuote?.close === 'number' && Number.isFinite(usdQuote.close)
+          ? usdQuote.close
+          : null
 
       acc[symbol] = {
         symbol,
-        priceUsd: typeof usdQuote?.price === 'number' ? usdQuote.price : null,
+        id: asset?.id ?? null,
+        priceUsd:
+          closePrice !== null
+            ? closePrice
+            : typeof usdQuote?.price === 'number'
+            ? usdQuote.price
+            : null,
         totalSupply:
           typeof asset?.total_supply === 'number' ? asset.total_supply : null,
         circulatingSupply:
@@ -165,6 +186,10 @@ async function fetchLatestPrices() {
         maxSupply:
           typeof asset?.max_supply === 'number' ? asset.max_supply : null,
         sourceLastUpdated: usdQuote?.last_updated || null,
+      }
+
+      if (asset?.id) {
+        dataState.assetIds[symbol] = asset.id
       }
 
       return acc
@@ -422,6 +447,9 @@ function addPriceHistory(prices) {
     dataState.priceHistory[symbol] = dataState.priceHistory[symbol].filter(
       (entry) => entry && typeof entry.timestamp === 'number' && entry.timestamp >= cutoff
     )
+    const count = dataState.priceHistory[symbol].length
+    const firstTs = count ? new Date(dataState.priceHistory[symbol][0].timestamp).toISOString() : 'n/a'
+    console.info(`[price-history] ${symbol} stored entries: ${count} (oldest ${firstTs})`)
   })
 }
 
@@ -430,12 +458,212 @@ function calculateMovingAverage(symbol) {
   if (!entries.length) return null
   const sum = entries.reduce((acc, entry) => acc + entry.priceUsd, 0)
   const avg = sum / entries.length
+  console.info(
+    `[price-history] ${symbol} avg (30d) from ${entries.length} points: ${avg.toFixed(4)}`
+  )
   return Number.isFinite(avg) && avg > 0 ? avg : null
 }
 
+function calculate30dClosingWindow(symbol) {
+  const entries = (dataState.priceHistory?.[symbol] || []).slice().sort((a, b) => a.timestamp - b.timestamp)
+  if (!entries.length) {
+    console.warn(`[price-history] ${symbol} has no entries for 30d closing window`)
+    return null
+  }
+
+  // Use the last day of the previous calendar month in UTC, and the 29 days before it (30 days total).
+  const refSource = dataState.lastCmcTimestamp || Date.now()
+  const refMs = typeof refSource === 'string' || typeof refSource === 'number' ? new Date(refSource).getTime() : Date.now()
+  const refValid = Number.isFinite(refMs)
+  const effectiveRef = refValid ? refMs : Date.now()
+  const msPerDay = 24 * 60 * 60 * 1000
+  const refDate = new Date(effectiveRef)
+  const endDateUtc = Date.UTC(refDate.getUTCFullYear(), refDate.getUTCMonth(), 0) // last day prev month at 00:00 UTC
+  const startDateUtc = endDateUtc - 29 * msPerDay
+  const endExclusive = endDateUtc + msPerDay // include the entire end day
+
+  const windowEntries = entries.filter(
+    (entry) => entry.timestamp >= startDateUtc && entry.timestamp < endExclusive
+  )
+
+  if (windowEntries.length < 30) {
+    console.warn(
+      `[price-history] ${symbol} insufficient closing data for 30d window: ${windowEntries.length} (need 30) between ${new Date(
+        startDateUtc
+      )
+        .toISOString()
+        .slice(0, 10)} and ${new Date(endDateUtc).toISOString().slice(0, 10)}`
+    )
+    return null
+  }
+
+  const avg =
+    windowEntries.reduce((acc, entry) => acc + entry.priceUsd, 0) / windowEntries.length
+
+  const hasGap = windowEntries.some((entry, idx) => {
+    if (idx === 0) return false
+    const gap = entry.timestamp - windowEntries[idx - 1].timestamp
+    return gap > msPerDay * 1.5
+  })
+
+  console.info(
+    `[price-history] ${symbol} window ${new Date(startDateUtc).toISOString().slice(0, 10)} -> ${new Date(
+      endDateUtc
+    )
+      .toISOString()
+      .slice(0, 10)} (${windowEntries.length} points)`
+  )
+
+  return {
+    avg: Number.isFinite(avg) ? avg : null,
+    count: windowEntries.length,
+    start: new Date(startDateUtc).toISOString().slice(0, 10),
+    end: new Date(endDateUtc).toISOString().slice(0, 10),
+    daysSpan: (endDateUtc - startDateUtc) / msPerDay,
+    hasGap,
+  }
+}
+
+function backfillWithCurrentPrices() {
+  const symbolsList = ['ETH', 'SSV']
+  const now = Date.now()
+  const dayMs = 24 * 60 * 60 * 1000
+  let added = false
+
+  symbolsList.forEach((symbol) => {
+    const priceUsd = dataState.prices?.[symbol]?.priceUsd
+    if (typeof priceUsd === 'number' && Number.isFinite(priceUsd) && priceUsd > 0) {
+      const entries = []
+      for (let i = 29; i >= 0; i -= 1) {
+        entries.push({ timestamp: now - i * dayMs, priceUsd })
+      }
+      dataState.priceHistory[symbol] = entries
+      added = true
+      console.warn(
+        `[price-history] Backfilled ${entries.length} synthetic entries for ${symbol} using latest price $${priceUsd.toFixed(
+          4
+        )}`
+      )
+    }
+  })
+
+  return added
+}
+
+async function seedHistoricalPricesIfNeeded() {
+  if (hasSeededHistory) return
+
+  const ethCount = dataState.priceHistory.ETH?.length || 0
+  const ssvCount = dataState.priceHistory.SSV?.length || 0
+  const needsSeed = ethCount < 10 || ssvCount < 10
+  if (!needsSeed) {
+    hasSeededHistory = true
+    return
+  }
+
+  const paramsBase = {
+    convert: 'USD',
+    interval: 'daily',
+    count: 90, // fetch a broader range so we always have last month's closes
+  }
+
+  if (!cmcApiKey) {
+    console.warn('[price-history] Cannot seed historical prices: missing CMC_API_KEY')
+    return
+  }
+
+  try {
+    console.info('[price-history] Seeding 30d close prices from CMC OHLCV...')
+    const symbolsToFetch = ['ETH', 'SSV']
+    let addedAny = false
+    for (const symbol of symbolsToFetch) {
+      const id = dataState.assetIds?.[symbol]
+      const params = {
+        ...paramsBase,
+      }
+      if (id) {
+        params.id = id
+      } else {
+        params.symbol = symbol
+      }
+      const response = await axios.get(CMC_OHLCV_URL, {
+        params,
+        headers: {
+          'X-CMC_PRO_API_KEY': cmcApiKey,
+        },
+        timeout: 10_000,
+      })
+      let quotes = response.data?.data?.quotes
+      if (!Array.isArray(quotes) || quotes.length === 0) {
+        console.warn(`[price-history] No historical quotes for ${symbol} via count; trying time window fallback`)
+        const fallbackParams = { ...params }
+        const fallbackResponse = await axios.get(CMC_OHLCV_URL, {
+          params: fallbackParams,
+          headers: { 'X-CMC_PRO_API_KEY': cmcApiKey },
+          timeout: 10_000,
+        })
+        quotes = fallbackResponse.data?.data?.quotes
+      }
+      if (!Array.isArray(quotes) || quotes.length === 0) {
+        console.warn(`[price-history] No historical quotes for ${symbol} after fallback`)
+        continue
+      }
+      quotes.forEach((quote) => {
+        const close = quote?.quote?.USD?.close
+        const timeClose = quote?.time_close || quote?.timestamp || quote?.quote?.USD?.timestamp
+        if (typeof close === 'number' && Number.isFinite(close) && close > 0 && timeClose) {
+          const ts = new Date(timeClose).getTime()
+          if (Number.isFinite(ts)) {
+            dataState.priceHistory[symbol].push({ timestamp: ts, priceUsd: close })
+            addedAny = true
+          }
+        } else {
+          console.warn(
+            `[price-history] Skipped quote for ${symbol}: close=${close}, time=${timeClose}`
+          )
+        }
+      })
+      // ensure we only keep the 30d window and sort
+      dataState.priceHistory[symbol] = (dataState.priceHistory[symbol] || [])
+        .filter((entry) => entry && Number.isFinite(entry.timestamp))
+        .sort((a, b) => a.timestamp - b.timestamp)
+    }
+    if (addedAny) {
+      hasSeededHistory = true
+      console.info(
+        '[price-history] Seeded entries -> ETH:',
+        dataState.priceHistory.ETH.length,
+        'SSV:',
+        dataState.priceHistory.SSV.length
+      )
+    } else {
+      const backfilled = backfillWithCurrentPrices()
+      if (backfilled) {
+        hasSeededHistory = true
+      }
+      console.warn('[price-history] Seeding completed but no entries were added; backfilled from latest prices.')
+    }
+  } catch (error) {
+    const code = error?.response?.data?.status?.error_code
+    if (code === 1006) {
+      console.warn(
+        '[price-history] CMC plan does not support OHLCV endpoint; will rely on live polling only.'
+      )
+      hasSeededHistory = true
+      return
+    }
+    console.error(
+      '[price-history] Failed to seed historical prices:',
+      error.response?.data || error.message
+    )
+  }
+}
+
 function logProjectedNextMonthFee() {
-  const avgEthPrice = calculateMovingAverage('ETH')
-  const avgSsvPrice = calculateMovingAverage('SSV')
+  const ethWindow = calculate30dClosingWindow('ETH')
+  const ssvWindow = calculate30dClosingWindow('SSV')
+  const avgEthPrice = ethWindow?.avg
+  const avgSsvPrice = ssvWindow?.avg
   const stakingAprDecimal = dataState.stakingApr?.value
   const networkFeePercentDecimal = normalizePercentDecimal(NETWORK_FEE_PERCENT_V1)
 
@@ -450,6 +678,25 @@ function logProjectedNextMonthFee() {
     return
   }
 
+  const windowOk =
+    ethWindow &&
+    ssvWindow &&
+    ethWindow.count >= 30 &&
+    ssvWindow.count >= 30 &&
+    !ethWindow.hasGap &&
+    !ssvWindow.hasGap &&
+    ethWindow.daysSpan >= 29 &&
+    ssvWindow.daysSpan >= 29
+
+  if (!windowOk) {
+    console.warn(
+      '[fee-projection] Skipping projection due to incomplete windows',
+      JSON.stringify({ ethWindow, ssvWindow })
+    )
+    dataState.nextMonthFeeProjection = null
+    return
+  }
+
   const perValidatorEthYieldUsd = 32 * avgEthPrice * stakingAprDecimal
   if (!Number.isFinite(perValidatorEthYieldUsd) || perValidatorEthYieldUsd <= 0) {
     return
@@ -459,11 +706,24 @@ function logProjectedNextMonthFee() {
     (perValidatorEthYieldUsd * networkFeePercentDecimal) / avgSsvPrice
 
   if (Number.isFinite(perYearSsv) && perYearSsv > 0) {
+    dataState.nextMonthFeeProjection = {
+      perYearSsv,
+      avgEthPrice,
+      avgSsvPrice,
+      stakingApr: stakingAprDecimal,
+      networkFeePercent: networkFeePercentDecimal,
+      computedAt: new Date().toISOString(),
+      ethWindow,
+      ssvWindow,
+    }
     console.info(
       '[fee-projection] Next-month projected fee (30d MA) ≈',
       `${perYearSsv.toFixed(4)} SSV/yr`,
-      `(ETH avg $${avgEthPrice.toFixed(2)}, SSV avg $${avgSsvPrice.toFixed(2)}, APR ${(stakingAprDecimal * 100).toFixed(2)}%, V1 fee ${(networkFeePercentDecimal * 100).toFixed(2)}%)`
+      `(ETH avg $${avgEthPrice.toFixed(2)}, SSV avg $${avgSsvPrice.toFixed(2)}, APR ${(stakingAprDecimal * 100).toFixed(2)}%, V1 fee ${(networkFeePercentDecimal * 100).toFixed(2)}%, window ETH ${ethWindow?.start}→${ethWindow?.end}, SSV ${ssvWindow?.start}→${ssvWindow?.end})`
     )
+  } else {
+    dataState.nextMonthFeeProjection = null
+    console.warn('[fee-projection] Unable to derive projected fee (perYearSsv invalid)')
   }
 }
 
@@ -575,6 +835,7 @@ async function fetchAllData() {
     fetchTotalStakedEth(),
     fetchNetworkFee(),
   ])
+  await seedHistoricalPricesIfNeeded()
 
   if (pricesUpdated || aprUpdated || stakedEthUpdated || networkFeeUpdated) {
     dataState.lastUpdated = new Date().toISOString()
@@ -606,6 +867,7 @@ app.get('/api/prices', (req, res) => {
         : dataState.networkFee?.percentDecimal ?? null,
       networkFeeYearlySsv: dataState.networkFee?.perYearSsv ?? null,
       currentContractFee: dataState.networkFee?.perYearSsv ?? null,
+      nextMonthNetworkFeeYearlySsv: dataState.nextMonthFeeProjection?.perYearSsv ?? null,
       networkFee: dataState.networkFee,
     },
     lastUpdated: dataState.lastUpdated,
