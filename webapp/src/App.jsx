@@ -58,6 +58,15 @@ const readEnvNumber = (key) => {
   return Number.isFinite(numeric) ? numeric : null
 }
 
+const resolveMinSsvPriceFloorDefault = () => {
+  const fallback = 4
+  const envValue = readEnvNumber('VITE_MIN_SSV_PRICE_FLOOR')
+  if (envValue !== null && envValue > 0) {
+    return envValue
+  }
+  return fallback
+}
+
 const normalizeRange = (range, defaults) => {
   const fallback = { ...defaults }
   if (!range || typeof range !== 'object') {
@@ -203,7 +212,7 @@ const computeAdjustedValue = (baseline, deltaPct) => {
 }
 
 const NETWORK_FEE_BASELINE = 0.01
-const MIN_SSV_PRICE_FLOOR_DEFAULT = 3.5
+const MIN_SSV_PRICE_FLOOR_DEFAULT = resolveMinSsvPriceFloorDefault()
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max)
 
