@@ -58,9 +58,9 @@ const readEnvNumber = (key) => {
   return Number.isFinite(numeric) ? numeric : null
 }
 
-const resolveMinSsvPriceFloorDefault = () => {
-  const fallback = 4
-  const envValue = readEnvNumber('VITE_MIN_SSV_PRICE_FLOOR')
+const resolveMinEthSsvPriceFloorDefault = () => {
+  const fallback = 700
+  const envValue = readEnvNumber('VITE_MIN_ETHSSV_PRICE_FLOOR')
   if (envValue !== null && envValue > 0) {
     return envValue
   }
@@ -212,7 +212,7 @@ const computeAdjustedValue = (baseline, deltaPct) => {
 }
 
 const NETWORK_FEE_BASELINE = 0.01
-const MIN_SSV_PRICE_FLOOR_DEFAULT = resolveMinSsvPriceFloorDefault()
+const MIN_ETHSSV_PRICE_FLOOR_DEFAULT = resolveMinEthSsvPriceFloorDefault()
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max)
 
@@ -594,8 +594,8 @@ function App() {
       INITIAL_SLIDER_DELTA_RANGES.networkFee.max
     )
   )
-  const [minSsvPriceFloor, setMinSsvPriceFloor] = useState(
-    MIN_SSV_PRICE_FLOOR_DEFAULT
+  const [minEthSsvPriceFloor, setMinEthSsvPriceFloor] = useState(
+    MIN_ETHSSV_PRICE_FLOOR_DEFAULT
   )
   const [stakedSsvPercent, setStakedSsvPercent] = useState(STAKED_SSV_BASELINE)
   const [liveNetworkFeeDecimal, setLiveNetworkFeeDecimal] = useState(null)
@@ -842,11 +842,6 @@ function App() {
       ? 32 * finalEthPrice * finalEthAprDecimal
       : null
 
-  const netFeeUsdPerValidator =
-    perValidatorEthYieldUsd !== null && finalNetworkFeeDecimal !== null
-      ? perValidatorEthYieldUsd * finalNetworkFeeDecimal
-      : null
-
   const overallFeesUsd =
     finalStakedEth !== null &&
     finalEthPrice !== null &&
@@ -869,29 +864,43 @@ function App() {
       ? (ssvTotalSupply * STAKED_SSV_BASELINE) / 100
       : null)
 
-  const sanitizedMinSsvPriceFloor =
-    typeof minSsvPriceFloor === 'number' && Number.isFinite(minSsvPriceFloor)
-      ? Math.max(minSsvPriceFloor, 0.01)
-      : MIN_SSV_PRICE_FLOOR_DEFAULT
+  const sanitizedMinEthSsvPriceFloor =
+    typeof minEthSsvPriceFloor === 'number' && Number.isFinite(minEthSsvPriceFloor)
+      ? Math.max(minEthSsvPriceFloor, 0.01)
+      : MIN_ETHSSV_PRICE_FLOOR_DEFAULT
 
   const feeFloorSliderValue =
-    typeof minSsvPriceFloor === 'number' && Number.isFinite(minSsvPriceFloor)
-      ? minSsvPriceFloor
-      : MIN_SSV_PRICE_FLOOR_DEFAULT
+    typeof minEthSsvPriceFloor === 'number' && Number.isFinite(minEthSsvPriceFloor)
+      ? minEthSsvPriceFloor
+      : MIN_ETHSSV_PRICE_FLOOR_DEFAULT
 
-  const canResetMinSsvFloor =
-    feeFloorSliderValue !== MIN_SSV_PRICE_FLOOR_DEFAULT
+  const canResetMinEthSsvFloor =
+    feeFloorSliderValue !== MIN_ETHSSV_PRICE_FLOOR_DEFAULT
 
-  const effectiveFeePriceDenominator =
-    finalSsvPrice !== null && finalSsvPrice > 0
-      ? Math.max(finalSsvPrice, sanitizedMinSsvPriceFloor)
-      : sanitizedMinSsvPriceFloor
+  const perValidatorEthYieldEth =
+    finalEthAprDecimal !== null ? 32 * finalEthAprDecimal : null
+
+  const netFeeEthPerValidator =
+    perValidatorEthYieldEth !== null && finalNetworkFeeDecimal !== null
+      ? perValidatorEthYieldEth * finalNetworkFeeDecimal
+      : null
+
+  const ethToSsvPriceRatio =
+    finalEthPrice !== null &&
+    finalEthPrice > 0 &&
+    finalSsvPrice !== null &&
+    finalSsvPrice > 0
+      ? finalEthPrice / finalSsvPrice
+      : null
+
+  const boundedEthToSsvRatio =
+    ethToSsvPriceRatio !== null && sanitizedMinEthSsvPriceFloor > 0
+      ? Math.min(ethToSsvPriceRatio, sanitizedMinEthSsvPriceFloor)
+      : null
 
   const networkFeePerValidatorSsv =
-    netFeeUsdPerValidator !== null &&
-    effectiveFeePriceDenominator !== null &&
-    effectiveFeePriceDenominator > 0
-      ? netFeeUsdPerValidator / effectiveFeePriceDenominator
+    netFeeEthPerValidator !== null && boundedEthToSsvRatio !== null
+      ? netFeeEthPerValidator * boundedEthToSsvRatio
       : null
 
   const networkFeePercentPerYear =
@@ -1011,10 +1020,7 @@ function App() {
       ? formatPercent(ssvAprV2 * 100)
       : '—'
 
-  const formattedMinSsvPriceFloor = formatCurrency(sanitizedMinSsvPriceFloor, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })
+  const formattedMinEthSsvPriceFloor = formatNumber(sanitizedMinEthSsvPriceFloor)
 
   const ssvApr =
     overallFeesUsd !== null &&
@@ -1268,11 +1274,14 @@ function App() {
     }
 
     const hasNetworkFeeCurveInputs =
-      netFeeUsdPerValidator !== null &&
+      netFeeEthPerValidator !== null &&
+      netFeeEthPerValidator >= 0 &&
       perValidatorEthYieldUsd !== null &&
       perValidatorEthYieldUsd > 0 &&
-      Number.isFinite(sanitizedMinSsvPriceFloor) &&
-      sanitizedMinSsvPriceFloor > 0
+      Number.isFinite(sanitizedMinEthSsvPriceFloor) &&
+      sanitizedMinEthSsvPriceFloor > 0 &&
+      finalEthPrice !== null &&
+      finalEthPrice > 0
 
     const baseRequirement =
       finalStakedEth *
@@ -1313,8 +1322,12 @@ function App() {
         typeof boost === 'number' && Number.isFinite(boost) ? boost * 100 : null
       let networkFeePercent = null
       if (hasNetworkFeeCurveInputs) {
-        const divisor = Math.max(price, sanitizedMinSsvPriceFloor)
-        const feeSsv = netFeeUsdPerValidator / divisor
+        const ethToSsvRatioForPrice = finalEthPrice / price
+        const boundedRatioForPrice = Math.min(
+          sanitizedMinEthSsvPriceFloor,
+          ethToSsvRatioForPrice
+        )
+        const feeSsv = netFeeEthPerValidator * boundedRatioForPrice
         const percentDecimal = (feeSsv * price) / perValidatorEthYieldUsd
         if (Number.isFinite(percentDecimal)) {
           networkFeePercent = percentDecimal * 100
@@ -1332,9 +1345,9 @@ function App() {
     impTierBoostMultiplier,
     impInflationCapSsv,
     totalValidators,
-    netFeeUsdPerValidator,
+    netFeeEthPerValidator,
     perValidatorEthYieldUsd,
-    sanitizedMinSsvPriceFloor,
+    sanitizedMinEthSsvPriceFloor,
   ])
 
   const networkFeePercentGraphPoints = useMemo(() => {
@@ -1348,11 +1361,13 @@ function App() {
         : null
 
     if (
-      netFeeUsdPerValidator === null ||
+      netFeeEthPerValidator === null ||
       perValidatorEthYieldUsd === null ||
       perValidatorEthYieldUsd <= 0 ||
-      !Number.isFinite(sanitizedMinSsvPriceFloor) ||
-      sanitizedMinSsvPriceFloor <= 0
+      !Number.isFinite(sanitizedMinEthSsvPriceFloor) ||
+      sanitizedMinEthSsvPriceFloor <= 0 ||
+      finalEthPrice === null ||
+      finalEthPrice <= 0
     ) {
       // Show a flat V1 line if available even when V2 inputs are missing.
       if (feePercentV1 === null) {
@@ -1377,21 +1392,23 @@ function App() {
       }
       let feePercent = null
       if (
-        netFeeUsdPerValidator !== null &&
+        netFeeEthPerValidator !== null &&
         perValidatorEthYieldUsd !== null &&
         perValidatorEthYieldUsd > 0 &&
-        Number.isFinite(sanitizedMinSsvPriceFloor) &&
-        sanitizedMinSsvPriceFloor > 0
+        Number.isFinite(sanitizedMinEthSsvPriceFloor) &&
+        sanitizedMinEthSsvPriceFloor > 0 &&
+        finalEthPrice !== null &&
+        finalEthPrice > 0
       ) {
-        const divisor = Math.max(price, sanitizedMinSsvPriceFloor)
-        if (Number.isFinite(divisor) && divisor > 0) {
-          const feeSsv = netFeeUsdPerValidator / divisor
-          if (Number.isFinite(feeSsv)) {
-            const percentDecimal = (feeSsv * price) / perValidatorEthYieldUsd
-            if (Number.isFinite(percentDecimal)) {
-              feePercent = percentDecimal * 100
-            }
-          }
+        const ethToSsvRatioForPrice = finalEthPrice / price
+        const boundedRatioForPrice = Math.min(
+          sanitizedMinEthSsvPriceFloor,
+          ethToSsvRatioForPrice
+        )
+        const feeSsv = netFeeEthPerValidator * boundedRatioForPrice
+        const percentDecimal = (feeSsv * price) / perValidatorEthYieldUsd
+        if (Number.isFinite(percentDecimal)) {
+          feePercent = percentDecimal * 100
         }
       }
       points.push({
@@ -1404,10 +1421,11 @@ function App() {
     return points
   }, [
     ssvPriceGraphRange,
-    netFeeUsdPerValidator,
+    netFeeEthPerValidator,
     perValidatorEthYieldUsd,
-    sanitizedMinSsvPriceFloor,
+    sanitizedMinEthSsvPriceFloor,
     networkFeeTargetDecimal,
+    finalEthPrice,
   ])
 
   const shareOnTwitter = useCallback(() => {
@@ -1463,13 +1481,13 @@ function App() {
     }
   }, [])
 
-  const handleMinSsvFloorReset = useCallback(() => {
-    setMinSsvPriceFloor(MIN_SSV_PRICE_FLOOR_DEFAULT)
+  const handleMinEthSsvFloorReset = useCallback(() => {
+    setMinEthSsvPriceFloor(MIN_ETHSSV_PRICE_FLOOR_DEFAULT)
   }, [])
 
-  const handleMinSsvFloorChange = useCallback((event) => {
+  const handleMinEthSsvFloorChange = useCallback((event) => {
     const nextValue = Number(event.target.value)
-    setMinSsvPriceFloor(nextValue)
+    setMinEthSsvPriceFloor(nextValue)
   }, [])
 
   const aprAvailable = formattedSsvApr !== '—'
@@ -1624,35 +1642,35 @@ function App() {
                     {formattedOverallFeesV2} overall / year
                   </p>
                   <p className="summary-description">
-                    Includes the minimum SSV price floor for fee-in-SSV calculations.
+                    Includes the ETH/SSV price floor cap for fee-in-SSV calculations.
                   </p>
                   <hr className="metric-divider" />
                   <div className="fee-floor-control">
                     <div className="fee-floor-control-header">
                       <span>Adjust floor</span>
-                      <span className="fee-floor-value">{formattedMinSsvPriceFloor}</span>
+                      <span className="fee-floor-value">{formattedMinEthSsvPriceFloor}</span>
                       <button
                         type="button"
                         className="fee-floor-reset"
-                        onClick={handleMinSsvFloorReset}
-                        disabled={!canResetMinSsvFloor}
+                        onClick={handleMinEthSsvFloorReset}
+                        disabled={!canResetMinEthSsvFloor}
                       >
                         Reset
                       </button>
                     </div>
                     <input
                       type="range"
-                      min={1}
-                      max={30}
-                      step={0.5}
+                      min={100}
+                      max={2000}
+                      step={10}
                       value={feeFloorSliderValue}
-                      onChange={handleMinSsvFloorChange}
-                      aria-label="Min SSV Price Floor"
+                      onChange={handleMinEthSsvFloorChange}
+                      aria-label="Min ETH/SSV Price Floor"
                     />
                     <div className="fee-floor-control-range">
-                      <span>$1</span>
-                      <span>{formattedMinSsvPriceFloor}</span>
-                      <span>$30</span>
+                      <span>100</span>
+                      <span>{formattedMinEthSsvPriceFloor}</span>
+                      <span>2000</span>
                     </div>
                   </div>
                 </article>
