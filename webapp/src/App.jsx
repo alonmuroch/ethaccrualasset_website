@@ -38,11 +38,21 @@ const formatNumber = (value) =>
 const formatCurrencyWithCents = (value) =>
   formatCurrency(value, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
-const formatPercent = (value) =>
-  `${value.toLocaleString(undefined, {
-    minimumFractionDigits: 1,
-    maximumFractionDigits: 1,
-  })}%`
+const formatPercent = (
+  value,
+  { minimumFractionDigits = 1, maximumFractionDigits = 1, truncate = false } = {}
+) => {
+  const digits = {
+    minimumFractionDigits,
+    maximumFractionDigits,
+  }
+
+  const adjustedValue = truncate
+    ? Math.trunc(value * 10 ** maximumFractionDigits) / 10 ** maximumFractionDigits
+    : value
+
+  return `${adjustedValue.toLocaleString(undefined, digits)}%`
+}
 
 const DEFAULT_SLIDER_DELTA_RANGES = Object.freeze({
   ethPrice: { min: -100, max: 200 },
@@ -249,7 +259,13 @@ const YearlyImpChart = ({ data }) => {
             yAxisId="boost"
             orientation="right"
             tickFormatter={(value) =>
-              typeof value === 'number' ? `${value.toFixed(1)}%` : value
+              typeof value === 'number'
+                ? formatPercent(value, {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                    truncate: true,
+                  })
+                : value
             }
           />
           <Tooltip
@@ -284,7 +300,11 @@ const YearlyImpChart = ({ data }) => {
                 const boostNumber = Number(value)
                 return [
                   Number.isFinite(boostNumber)
-                    ? `${boostNumber.toFixed(2)}%`
+                    ? formatPercent(boostNumber, {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                        truncate: true,
+                      })
                     : value,
                   'IMP Actual Boost',
                 ]
@@ -292,7 +312,13 @@ const YearlyImpChart = ({ data }) => {
               if (dataKey === 'networkFeePercent') {
                 const feePercent = Number(value)
                 return [
-                  Number.isFinite(feePercent) ? `${feePercent.toFixed(2)}%` : value,
+                  Number.isFinite(feePercent)
+                    ? formatPercent(feePercent, {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                        truncate: true,
+                      })
+                    : value,
                   'Network Fee (%)',
                 ]
               }
@@ -378,7 +404,13 @@ const NetworkFeeChart = ({ data }) => {
               (dataMax) => (Number.isFinite(dataMax) ? dataMax * 1.25 : dataMax),
             ]}
             tickFormatter={(value) =>
-              typeof value === 'number' ? `${value.toFixed(2)}%` : value
+              typeof value === 'number'
+                ? formatPercent(value, {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                    truncate: true,
+                  })
+                : value
             }
           />
           <YAxis
@@ -389,12 +421,24 @@ const NetworkFeeChart = ({ data }) => {
               (dataMax) => (Number.isFinite(dataMax) ? dataMax * 1.25 : dataMax),
             ]}
             tickFormatter={(value) =>
-              typeof value === 'number' ? `${value.toFixed(2)}%` : value
+              typeof value === 'number'
+                ? formatPercent(value, {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                    truncate: true,
+                  })
+                : value
             }
           />
           <Tooltip
             formatter={(value) =>
-              typeof value === 'number' ? `${value.toFixed(2)}%` : value
+              typeof value === 'number'
+                ? formatPercent(value, {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                    truncate: true,
+                  })
+                : value
             }
             labelFormatter={(value) =>
               typeof value === 'number' ? `$${value.toFixed(2)}` : value
@@ -942,7 +986,13 @@ function App() {
 
   const v1FeePercentValue = networkFeeAdjustedPercent
   const formattedV1FeePercent =
-    v1FeePercentValue !== null ? formatPercent(v1FeePercentValue) : '—'
+    v1FeePercentValue !== null
+      ? formatPercent(v1FeePercentValue, {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+          truncate: true,
+        })
+      : '—'
 
   const v1FeePerValidatorSsv =
     perValidatorEthYieldUsd !== null &&
@@ -990,7 +1040,13 @@ function App() {
       ? networkFeePercentPerYear * 100
       : null
   const formattedV2FeePercent =
-    v2FeePercentValue !== null ? formatPercent(v2FeePercentValue) : '—'
+    v2FeePercentValue !== null
+      ? formatPercent(v2FeePercentValue, {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+          truncate: true,
+        })
+      : '—'
 
   const formattedV2FeePerValidatorSsv =
     networkFeePerValidatorSsv !== null
@@ -1138,7 +1194,11 @@ function App() {
 
   const formattedImpActualBoost =
     impActualBoostPercent !== null
-      ? formatPercent(impActualBoostPercent)
+      ? formatPercent(impActualBoostPercent, {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+          truncate: true,
+        })
       : '—'
 
   const formattedTotalValidators =
